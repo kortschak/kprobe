@@ -37,11 +37,10 @@ print fmt: "(%lx) sock=0x%Lx size=%u af=%u laddr=%u lport=%u raddr=%u rport=%u",
 
 	s, name, id, err := kprobe.Struct(strings.NewReader(format))
 	if err != nil {
-		if _, ok := err.(kprobe.UnalignedFieldsError); ok {
-			fmt.Printf("warning: %v\n", err)
-		} else {
+		if _, ok := err.(kprobe.UnalignedFieldsError); !ok {
 			log.Fatal(err)
 		}
+		fmt.Printf("warning: %v\n", err)
 	}
 	fmt.Println(name, id)
 
