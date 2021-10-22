@@ -119,6 +119,36 @@ print fmt: "(%lx) arg1=0x%Lx arg2={0x%x,0x%x,0x%x,0x%x,0x%x,0x%x,0x%x,0x%x}", RE
 			Arg2                 [8]uint8 `ctyp:"u8[8]" json:"arg2"`
 		}{},
 	},
+	{
+		name: "ath10k_htt_stats",
+		format: `name: ath10k_htt_stats
+ID: 2059
+format:
+	field:unsigned short common_type;	offset:0;	size:2;	signed:0;
+	field:unsigned char common_flags;	offset:2;	size:1;	signed:0;
+	field:unsigned char common_preempt_count;	offset:3;	size:1;	signed:0;
+	field:int common_pid;	offset:4;	size:4;	signed:1;
+
+	field:__data_loc char[] device;	offset:8;	size:4;	signed:1;
+	field:__data_loc char[] driver;	offset:12;	size:4;	signed:1;
+	field:size_t buf_len;	offset:16;	size:8;	signed:0;
+	field:__data_loc u8[] buf;	offset:24;	size:4;	signed:0;
+
+print fmt: "%s %s len %zu", __get_str(driver), __get_str(device), REC->buf_len
+`,
+		wantName: "ath10k_htt_stats",
+		wantID:   2059,
+		want: struct {
+			Common_type          uint16 `ctyp:"unsigned short" json:"common_type"`
+			Common_flags         uint8  `ctyp:"unsigned char" json:"common_flags"`
+			Common_preempt_count uint8  `ctyp:"unsigned char" json:"common_preempt_count"`
+			Common_pid           int32  `ctyp:"int" json:"common_pid"`
+			Device               uint32 `ctyp:"__data_loc char[]" json:"device"`
+			Driver               uint32 `ctyp:"__data_loc char[]" json:"driver"`
+			Buf_len              uint64 `ctyp:"size_t" json:"buf_len"`
+			Buf                  uint32 `ctyp:"__data_loc u8[]" json:"buf"`
+		}{},
+	},
 }
 
 func TestStruct(t *testing.T) {

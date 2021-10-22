@@ -18,8 +18,18 @@ import (
 )
 
 // Struct returns a struct corresponding to the kprobe event format in r,
-// and the probe's name and id. Currently string, ustring and bitfield
-// field types are not handled.
+// along with the probe's name and id.
+//
+// Structs referencing dynamic arrays as string data hold a 32 bit unsigned
+// value that points to the data with a ctyp field tag with the prefix
+// __data_loc. The value has the following semantics:
+//
+//   #define __get_dynamic_array(field)
+//     ((void *)__entry + (__entry->__data_loc_##field & 0xffff))
+//
+//   #define __get_dynamic_array_len(field)
+//     ((__entry->__data_loc_##field >> 16) & 0xffff)
+//
 func Struct(r io.Reader) (typ reflect.Type, name string, id int, err error) {
 	var fields []reflect.StructField
 	sc := bufio.NewScanner(r)
@@ -150,14 +160,14 @@ func integerType(size, signed, ctyp string) (reflect.Type, int, error) {
 	if err != nil {
 		return nil, 0, fmt.Errorf("invalid size: %w", err)
 	}
-	n, err := arraySize(ctyp)
+	n, dynamic, err := arraySize(ctyp)
 	if err != nil {
 		return nil, 0, err
 	}
 	if bytes%n != 0 {
 		return nil, 0, fmt.Errorf("invalid size for array: size=%d elements=%d", bytes, n)
 	}
-	typ := integerTypes[typeClass{bytes / n, s == 1}]
+	typ := integerTypes[typeClass{bytes / n, s == 1 && !dynamic}]
 	if n > 1 {
 		typ = reflect.ArrayOf(n, typ)
 	}
@@ -166,17 +176,26 @@ func integerType(size, signed, ctyp string) (reflect.Type, int, error) {
 
 // arraySize returns the number of elements in an array according to the syntax
 // specified in the kprobetrace documentation.
-func arraySize(ctyp string) (int, error) {
+func arraySize(ctyp string) (n int, dynamic bool, err error) {
 	if !strings.HasSuffix(ctyp, "]") {
-		return 1, nil
+		return 1, false, nil
 	}
 	prefix := strings.TrimRightFunc(ctyp[:len(ctyp)-1], func(r rune) bool {
 		return '0' <= r && r <= '9'
 	})
 	if !strings.HasSuffix(prefix, "[") {
-		return 0, fmt.Errorf("invalid name: %q", ctyp)
+		return 0, false, fmt.Errorf("invalid data type: %q", ctyp)
 	}
-	return strconv.Atoi(strings.TrimPrefix(ctyp[:len(ctyp)-1], prefix))
+	c := strings.TrimPrefix(ctyp[:len(ctyp)-1], prefix)
+	if c == "" {
+		if !strings.HasPrefix(ctyp, "__data_loc ") {
+			return 0, false, fmt.Errorf("invalid data type: %q", ctyp)
+		}
+		// We are a dynamic array.
+		return 1, true, nil
+	}
+	n, err = strconv.Atoi(c)
+	return n, false, err
 }
 
 type typeClass struct {
