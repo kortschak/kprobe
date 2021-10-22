@@ -11,12 +11,13 @@ import (
 )
 
 var formatTests = []struct {
-	name     string
-	format   string
-	wantName string
-	wantID   int
-	want     interface{}
-	wantErr  error
+	name          string
+	format        string
+	wantName      string
+	wantID        int
+	wantAligned   interface{}
+	wantUnaligned interface{}
+	wantErr       error
 }{
 	{
 		name: "https://www.kernel.org/doc/html/latest/trace/kprobetrace.html",
@@ -41,12 +42,25 @@ REC->dfd, REC->filename, REC->flags, REC->mode
 `,
 		wantName: "myprobe",
 		wantID:   780,
-		want: struct {
+		wantAligned: struct {
 			Common_type          uint16 `ctyp:"unsigned short" name:"common_type"`
 			Common_flags         uint8  `ctyp:"unsigned char" name:"common_flags"`
 			Common_preempt_count uint8  `ctyp:"unsigned char" name:"common_preempt_count"`
 			Common_pid           int32  `ctyp:"int" name:"common_pid"`
 			_pad0                [4]uint8
+			Probe_ip             uint32 `ctyp:"unsigned long" name:"__probe_ip"`
+			Probe_nargs          int32  `ctyp:"int" name:"__probe_nargs"`
+			Dfd                  uint32 `ctyp:"unsigned long" name:"dfd"`
+			Filename             uint32 `ctyp:"unsigned long" name:"filename"`
+			Flags                uint32 `ctyp:"unsigned long" name:"flags"`
+			Mode                 uint32 `ctyp:"unsigned long" name:"mode"`
+		}{},
+		wantUnaligned: struct {
+			Common_type          uint16 `ctyp:"unsigned short" name:"common_type"`
+			Common_flags         uint8  `ctyp:"unsigned char" name:"common_flags"`
+			Common_preempt_count uint8  `ctyp:"unsigned char" name:"common_preempt_count"`
+			Common_pid           int32  `ctyp:"int" name:"common_pid"`
+			_pad0                [0]uint8
 			Probe_ip             uint32 `ctyp:"unsigned long" name:"__probe_ip"`
 			Probe_nargs          int32  `ctyp:"int" name:"__probe_nargs"`
 			Dfd                  uint32 `ctyp:"unsigned long" name:"dfd"`
@@ -78,12 +92,25 @@ REC->dfd, REC->filename, REC->flags, REC->mode
 `,
 		wantName: "myprobe",
 		wantID:   780,
-		want: struct {
+		wantAligned: struct {
 			Common_type          uint16 `ctyp:"unsigned short" name:"common_type"`
 			Common_flags         uint8  `ctyp:"unsigned char" name:"common_flags"`
 			Common_preempt_count uint8  `ctyp:"unsigned char" name:"common_preempt_count"`
 			Common_pid           int32  `ctyp:"int" name:"common_pid"`
 			_pad0                [4]uint8
+			Probe_ip             uint32    `ctyp:"unsigned long" name:"__probe_ip"`
+			Probe_nargs          int32     `ctyp:"int" name:"__probe_nargs"`
+			Dfd                  uint32    `ctyp:"unsigned long" name:"dfd"`
+			Filename             uint32    `ctyp:"unsigned long" name:"filename"`
+			Flags                [2]uint32 `ctyp:"unsigned long[2]" name:"flags"`
+			Mode                 uint32    `ctyp:"unsigned long" name:"mode"`
+		}{},
+		wantUnaligned: struct {
+			Common_type          uint16 `ctyp:"unsigned short" name:"common_type"`
+			Common_flags         uint8  `ctyp:"unsigned char" name:"common_flags"`
+			Common_preempt_count uint8  `ctyp:"unsigned char" name:"common_preempt_count"`
+			Common_pid           int32  `ctyp:"int" name:"common_pid"`
+			_pad0                [0]uint8
 			Probe_ip             uint32    `ctyp:"unsigned long" name:"__probe_ip"`
 			Probe_nargs          int32     `ctyp:"int" name:"__probe_nargs"`
 			Dfd                  uint32    `ctyp:"unsigned long" name:"dfd"`
@@ -110,7 +137,16 @@ print fmt: "(%lx) arg1=0x%Lx arg2={0x%x,0x%x,0x%x,0x%x,0x%x,0x%x,0x%x,0x%x}", RE
 `,
 		wantName: "p_vfs_read_0",
 		wantID:   3842,
-		want: struct {
+		wantAligned: struct {
+			Common_type          uint16   `ctyp:"unsigned short" name:"common_type"`
+			Common_flags         uint8    `ctyp:"unsigned char" name:"common_flags"`
+			Common_preempt_count uint8    `ctyp:"unsigned char" name:"common_preempt_count"`
+			Common_pid           int32    `ctyp:"int" name:"common_pid"`
+			Probe_ip             uint64   `ctyp:"unsigned long" name:"__probe_ip"`
+			Arg1                 uint64   `ctyp:"u64" name:"arg1"`
+			Arg2                 [8]uint8 `ctyp:"u8[8]" name:"arg2"`
+		}{},
+		wantUnaligned: struct {
 			Common_type          uint16   `ctyp:"unsigned short" name:"common_type"`
 			Common_flags         uint8    `ctyp:"unsigned char" name:"common_flags"`
 			Common_preempt_count uint8    `ctyp:"unsigned char" name:"common_preempt_count"`
@@ -139,7 +175,17 @@ print fmt: "%s %s len %zu", __get_str(driver), __get_str(device), REC->buf_len
 `,
 		wantName: "ath10k_htt_stats",
 		wantID:   2059,
-		want: struct {
+		wantAligned: struct {
+			Common_type          uint16 `ctyp:"unsigned short" name:"common_type"`
+			Common_flags         uint8  `ctyp:"unsigned char" name:"common_flags"`
+			Common_preempt_count uint8  `ctyp:"unsigned char" name:"common_preempt_count"`
+			Common_pid           int32  `ctyp:"int" name:"common_pid"`
+			Device               uint32 `ctyp:"__data_loc char[]" name:"device"`
+			Driver               uint32 `ctyp:"__data_loc char[]" name:"driver"`
+			Buf_len              uint64 `ctyp:"size_t" name:"buf_len"`
+			Buf                  uint32 `ctyp:"__data_loc u8[]" name:"buf"`
+		}{},
+		wantUnaligned: struct {
 			Common_type          uint16 `ctyp:"unsigned short" name:"common_type"`
 			Common_flags         uint8  `ctyp:"unsigned char" name:"common_flags"`
 			Common_preempt_count uint8  `ctyp:"unsigned char" name:"common_preempt_count"`
@@ -173,7 +219,7 @@ print fmt: "(%lx) sock=0x%Lx size=%u af=%u laddr=%u lport=%u raddr=%u rport=%u",
 `,
 		wantName: "ip_local_out_call",
 		wantID:   3226,
-		want: struct {
+		wantAligned: struct {
 			Common_type          uint16   `ctyp:"unsigned short" name:"common_type"`
 			Common_flags         uint8    `ctyp:"unsigned char" name:"common_flags"`
 			Common_preempt_count uint8    `ctyp:"unsigned char" name:"common_preempt_count"`
@@ -187,6 +233,20 @@ print fmt: "(%lx) sock=0x%Lx size=%u af=%u laddr=%u lport=%u raddr=%u rport=%u",
 			Raddr                uint32   `ctyp:"u32" name:"raddr"`
 			Rport                uint16   `ctyp:"u16" name:"rport"`
 		}{},
+		wantUnaligned: struct {
+			Common_type          uint16 `ctyp:"unsigned short" name:"common_type"`
+			Common_flags         uint8  `ctyp:"unsigned char" name:"common_flags"`
+			Common_preempt_count uint8  `ctyp:"unsigned char" name:"common_preempt_count"`
+			Common_pid           int32  `ctyp:"int" name:"common_pid"`
+			Probe_ip             uint64 `ctyp:"unsigned long" name:"__probe_ip"`
+			Sock                 uint64 `ctyp:"u64" name:"sock"`
+			Size                 uint32 `ctyp:"u32" name:"size"`
+			Af                   uint16 `ctyp:"u16" name:"af"`
+			Laddr                uint32 `ctyp:"u32" name:"laddr"`
+			Lport                uint16 `ctyp:"u16" name:"lport"`
+			Raddr                uint32 `ctyp:"u32" name:"raddr"`
+			Rport                uint16 `ctyp:"u16" name:"rport"`
+		}{},
 		wantErr: UnalignedFieldsError{
 			Fields:    []int{8},
 			Unaligned: []bool{8: true, 11: false},
@@ -196,9 +256,9 @@ print fmt: "(%lx) sock=0x%Lx size=%u af=%u laddr=%u lport=%u raddr=%u rport=%u",
 
 func TestStruct(t *testing.T) {
 	for _, test := range formatTests {
-		typ, gotName, gotID, err := Struct(strings.NewReader(test.format))
+		typAligned, gotName, gotID, err := Struct(strings.NewReader(test.format), true)
 		if !reflect.DeepEqual(err, test.wantErr) {
-			t.Errorf("unexpected error for %q: got:%#v want:%#v",
+			t.Errorf("unexpected error for aligned %q: got:%#v want:%#v",
 				test.name, err, test.wantErr)
 			if test.wantErr == nil {
 				continue
@@ -213,17 +273,38 @@ func TestStruct(t *testing.T) {
 				test.name, gotID, test.wantID)
 		}
 
-		wv := reflect.ValueOf(test.want)
-		if !wv.CanConvert(typ) {
+		wv := reflect.ValueOf(test.wantAligned)
+		if !wv.CanConvert(typAligned) {
 			t.Errorf("unexpected struct for %q:\ngot: %T\nwant:%T",
-				test.name, reflect.New(typ).Elem().Interface(), test.want)
+				test.name, reflect.New(typAligned).Elem().Interface(), test.wantAligned)
 		}
 
 		wt := wv.Type()
 		for i := 0; i < wt.NumField(); i++ {
-			if wt.Field(i).Tag != typ.Field(i).Tag {
+			if wt.Field(i).Tag != typAligned.Field(i).Tag {
 				t.Errorf("unexpected struct tag for %q %s: got:%#q want:%#q",
-					test.name, wt.Field(i).Name, typ.Field(i).Tag, wt.Field(i).Tag)
+					test.name, wt.Field(i).Name, typAligned.Field(i).Tag, wt.Field(i).Tag)
+			}
+		}
+
+		typUnaligned, _, _, err := Struct(strings.NewReader(test.format), false)
+		if err != nil {
+			t.Errorf("unexpected error for unaligned %q: got:%#v want:%#v",
+				test.name, err, test.wantErr)
+			continue
+		}
+
+		wvu := reflect.ValueOf(test.wantUnaligned)
+		if !wvu.CanConvert(typUnaligned) {
+			t.Errorf("unexpected struct for %q:\ngot: %T\nwant:%T",
+				test.name, reflect.New(typUnaligned).Elem().Interface(), test.wantUnaligned)
+		}
+
+		wtu := wvu.Type()
+		for i := 0; i < wt.NumField(); i++ {
+			if wtu.Field(i).Tag != typUnaligned.Field(i).Tag {
+				t.Errorf("unexpected struct tag for %q %s: got:%#q want:%#q",
+					test.name, wtu.Field(i).Name, typUnaligned.Field(i).Tag, wtu.Field(i).Tag)
 			}
 		}
 	}

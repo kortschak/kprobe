@@ -35,9 +35,11 @@ format:
 print fmt: "(%lx) sock=0x%Lx size=%u af=%u laddr=%u lport=%u raddr=%u rport=%u", REC->__probe_ip, REC->sock, REC->size, REC->af, REC->laddr, REC->lport, REC->raddr, REC->rport
 `
 
-	s, name, id, err := kprobe.Struct(strings.NewReader(format))
+	srcTyp, name, id, err := kprobe.Struct(strings.NewReader(format), true)
+	var unaligned kprobe.UnalignedFieldsError
 	if err != nil {
-		if _, ok := err.(kprobe.UnalignedFieldsError); !ok {
+		var ok bool
+		if unaligned, ok = err.(kprobe.UnalignedFieldsError); !ok {
 			log.Fatal(err)
 		}
 		fmt.Printf("warning: %v\n", err)
@@ -53,11 +55,23 @@ print fmt: "(%lx) sock=0x%Lx size=%u af=%u laddr=%u lport=%u raddr=%u rport=%u",
 		0xbe, 0xef, 0x00, 0x00,
 	}
 
-	v := reflect.NewAt(s, unsafe.Pointer(&data[0]))
-	fmt.Printf("%+v\n", v)
+	src := reflect.NewAt(srcTyp, unsafe.Pointer(&data[0]))
+	fmt.Printf("src: %+v\n", src)
+
+	dstTyp, _, _, err := kprobe.Struct(strings.NewReader(format), false)
+	if err != nil {
+		log.Fatal(err)
+	}
+	dst := reflect.New(dstTyp)
+	err = kprobe.Copy(dst, src, unaligned)
+	if err != nil {
+		fmt.Println(err)
+	}
+	fmt.Printf("dst: %+v\n", dst)
 
 	// Output:
 	// warning: unaligned fields in struct: [8]
 	// ip_local_out_call 3226
-	// &{Common_type:3965 Common_flags:0 Common_preempt_count:0 Common_pid:10695 Probe_ip:4024118031 Sock:174262249054272 Size:60 Af:2 Laddr:[127 0 0 1] Lport:44510 Raddr:16777343 Rport:61374}
+	// src: &{Common_type:3965 Common_flags:0 Common_preempt_count:0 Common_pid:10695 Probe_ip:4024118031 Sock:174262249054272 Size:60 Af:2 Laddr:[127 0 0 1] Lport:44510 Raddr:16777343 Rport:61374}
+	// dst: &{Common_type:3965 Common_flags:0 Common_preempt_count:0 Common_pid:10695 Probe_ip:4024118031 Sock:174262249054272 Size:60 Af:2 Laddr:16777343 Lport:44510 Raddr:16777343 Rport:61374}
 }
