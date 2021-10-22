@@ -16,6 +16,7 @@ var formatTests = []struct {
 	wantName string
 	wantID   int
 	want     interface{}
+	wantErr  error
 }{
 	{
 		name: "https://www.kernel.org/doc/html/latest/trace/kprobetrace.html",
@@ -41,17 +42,17 @@ REC->dfd, REC->filename, REC->flags, REC->mode
 		wantName: "myprobe",
 		wantID:   780,
 		want: struct {
-			Common_type          uint16 `ctyp:"unsigned short" json:"common_type"`
-			Common_flags         uint8  `ctyp:"unsigned char" json:"common_flags"`
-			Common_preempt_count uint8  `ctyp:"unsigned char" json:"common_preempt_count"`
-			Common_pid           int32  `ctyp:"int" json:"common_pid"`
+			Common_type          uint16 `ctyp:"unsigned short" name:"common_type"`
+			Common_flags         uint8  `ctyp:"unsigned char" name:"common_flags"`
+			Common_preempt_count uint8  `ctyp:"unsigned char" name:"common_preempt_count"`
+			Common_pid           int32  `ctyp:"int" name:"common_pid"`
 			_pad0                [4]uint8
-			Probe_ip             uint32 `ctyp:"unsigned long" json:"__probe_ip"`
-			Probe_nargs          int32  `ctyp:"int" json:"__probe_nargs"`
-			Dfd                  uint32 `ctyp:"unsigned long" json:"dfd"`
-			Filename             uint32 `ctyp:"unsigned long" json:"filename"`
-			Flags                uint32 `ctyp:"unsigned long" json:"flags"`
-			Mode                 uint32 `ctyp:"unsigned long" json:"mode"`
+			Probe_ip             uint32 `ctyp:"unsigned long" name:"__probe_ip"`
+			Probe_nargs          int32  `ctyp:"int" name:"__probe_nargs"`
+			Dfd                  uint32 `ctyp:"unsigned long" name:"dfd"`
+			Filename             uint32 `ctyp:"unsigned long" name:"filename"`
+			Flags                uint32 `ctyp:"unsigned long" name:"flags"`
+			Mode                 uint32 `ctyp:"unsigned long" name:"mode"`
 		}{},
 	},
 	{
@@ -78,17 +79,17 @@ REC->dfd, REC->filename, REC->flags, REC->mode
 		wantName: "myprobe",
 		wantID:   780,
 		want: struct {
-			Common_type          uint16 `ctyp:"unsigned short" json:"common_type"`
-			Common_flags         uint8  `ctyp:"unsigned char" json:"common_flags"`
-			Common_preempt_count uint8  `ctyp:"unsigned char" json:"common_preempt_count"`
-			Common_pid           int32  `ctyp:"int" json:"common_pid"`
+			Common_type          uint16 `ctyp:"unsigned short" name:"common_type"`
+			Common_flags         uint8  `ctyp:"unsigned char" name:"common_flags"`
+			Common_preempt_count uint8  `ctyp:"unsigned char" name:"common_preempt_count"`
+			Common_pid           int32  `ctyp:"int" name:"common_pid"`
 			_pad0                [4]uint8
-			Probe_ip             uint32    `ctyp:"unsigned long" json:"__probe_ip"`
-			Probe_nargs          int32     `ctyp:"int" json:"__probe_nargs"`
-			Dfd                  uint32    `ctyp:"unsigned long" json:"dfd"`
-			Filename             uint32    `ctyp:"unsigned long" json:"filename"`
-			Flags                [2]uint32 `ctyp:"unsigned long[2]" json:"flags"`
-			Mode                 uint32    `ctyp:"unsigned long" json:"mode"`
+			Probe_ip             uint32    `ctyp:"unsigned long" name:"__probe_ip"`
+			Probe_nargs          int32     `ctyp:"int" name:"__probe_nargs"`
+			Dfd                  uint32    `ctyp:"unsigned long" name:"dfd"`
+			Filename             uint32    `ctyp:"unsigned long" name:"filename"`
+			Flags                [2]uint32 `ctyp:"unsigned long[2]" name:"flags"`
+			Mode                 uint32    `ctyp:"unsigned long" name:"mode"`
 		}{},
 	},
 	{
@@ -110,13 +111,13 @@ print fmt: "(%lx) arg1=0x%Lx arg2={0x%x,0x%x,0x%x,0x%x,0x%x,0x%x,0x%x,0x%x}", RE
 		wantName: "p_vfs_read_0",
 		wantID:   3842,
 		want: struct {
-			Common_type          uint16   `ctyp:"unsigned short" json:"common_type"`
-			Common_flags         uint8    `ctyp:"unsigned char" json:"common_flags"`
-			Common_preempt_count uint8    `ctyp:"unsigned char" json:"common_preempt_count"`
-			Common_pid           int32    `ctyp:"int" json:"common_pid"`
-			Probe_ip             uint64   `ctyp:"unsigned long" json:"__probe_ip"`
-			Arg1                 uint64   `ctyp:"u64" json:"arg1"`
-			Arg2                 [8]uint8 `ctyp:"u8[8]" json:"arg2"`
+			Common_type          uint16   `ctyp:"unsigned short" name:"common_type"`
+			Common_flags         uint8    `ctyp:"unsigned char" name:"common_flags"`
+			Common_preempt_count uint8    `ctyp:"unsigned char" name:"common_preempt_count"`
+			Common_pid           int32    `ctyp:"int" name:"common_pid"`
+			Probe_ip             uint64   `ctyp:"unsigned long" name:"__probe_ip"`
+			Arg1                 uint64   `ctyp:"u64" name:"arg1"`
+			Arg2                 [8]uint8 `ctyp:"u8[8]" name:"arg2"`
 		}{},
 	},
 	{
@@ -139,24 +140,69 @@ print fmt: "%s %s len %zu", __get_str(driver), __get_str(device), REC->buf_len
 		wantName: "ath10k_htt_stats",
 		wantID:   2059,
 		want: struct {
-			Common_type          uint16 `ctyp:"unsigned short" json:"common_type"`
-			Common_flags         uint8  `ctyp:"unsigned char" json:"common_flags"`
-			Common_preempt_count uint8  `ctyp:"unsigned char" json:"common_preempt_count"`
-			Common_pid           int32  `ctyp:"int" json:"common_pid"`
-			Device               uint32 `ctyp:"__data_loc char[]" json:"device"`
-			Driver               uint32 `ctyp:"__data_loc char[]" json:"driver"`
-			Buf_len              uint64 `ctyp:"size_t" json:"buf_len"`
-			Buf                  uint32 `ctyp:"__data_loc u8[]" json:"buf"`
+			Common_type          uint16 `ctyp:"unsigned short" name:"common_type"`
+			Common_flags         uint8  `ctyp:"unsigned char" name:"common_flags"`
+			Common_preempt_count uint8  `ctyp:"unsigned char" name:"common_preempt_count"`
+			Common_pid           int32  `ctyp:"int" name:"common_pid"`
+			Device               uint32 `ctyp:"__data_loc char[]" name:"device"`
+			Driver               uint32 `ctyp:"__data_loc char[]" name:"driver"`
+			Buf_len              uint64 `ctyp:"size_t" name:"buf_len"`
+			Buf                  uint32 `ctyp:"__data_loc u8[]" name:"buf"`
 		}{},
+	},
+	{
+		name: "ip_local_out_call",
+		format: `name: ip_local_out_call
+ID: 3226
+format:
+	field:unsigned short common_type;	offset:0;	size:2;	signed:0;
+	field:unsigned char common_flags;	offset:2;	size:1;	signed:0;
+	field:unsigned char common_preempt_count;	offset:3;	size:1;	signed:0;
+	field:int common_pid;	offset:4;	size:4;	signed:1;
+
+	field:unsigned long __probe_ip;	offset:8;	size:8;	signed:0;
+	field:u64 sock;	offset:16;	size:8;	signed:0;
+	field:u32 size;	offset:24;	size:4;	signed:0;
+	field:u16 af;	offset:28;	size:2;	signed:0;
+	field:u32 laddr;	offset:30;	size:4;	signed:0;
+	field:u16 lport;	offset:34;	size:2;	signed:0;
+	field:u32 raddr;	offset:36;	size:4;	signed:0;
+	field:u16 rport;	offset:40;	size:2;	signed:0;
+
+print fmt: "(%lx) sock=0x%Lx size=%u af=%u laddr=%u lport=%u raddr=%u rport=%u", REC->__probe_ip, REC->sock, REC->size, REC->af, REC->laddr, REC->lport, REC->raddr, REC->rport
+`,
+		wantName: "ip_local_out_call",
+		wantID:   3226,
+		want: struct {
+			Common_type          uint16   `ctyp:"unsigned short" name:"common_type"`
+			Common_flags         uint8    `ctyp:"unsigned char" name:"common_flags"`
+			Common_preempt_count uint8    `ctyp:"unsigned char" name:"common_preempt_count"`
+			Common_pid           int32    `ctyp:"int" name:"common_pid"`
+			Probe_ip             uint64   `ctyp:"unsigned long" name:"__probe_ip"`
+			Sock                 uint64   `ctyp:"u64" name:"sock"`
+			Size                 uint32   `ctyp:"u32" name:"size"`
+			Af                   uint16   `ctyp:"u16" name:"af"`
+			Laddr                [4]uint8 `ctyp:"u32" name:"laddr"`
+			Lport                uint16   `ctyp:"u16" name:"lport"`
+			Raddr                uint32   `ctyp:"u32" name:"raddr"`
+			Rport                uint16   `ctyp:"u16" name:"rport"`
+		}{},
+		wantErr: UnalignedFieldsError{
+			Fields:    []int{8},
+			Unaligned: []bool{8: true, 11: false},
+		},
 	},
 }
 
 func TestStruct(t *testing.T) {
 	for _, test := range formatTests {
 		typ, gotName, gotID, err := Struct(strings.NewReader(test.format))
-		if err != nil {
-			t.Errorf("unexpected error for %q: %v", test.name, err)
-			continue
+		if !reflect.DeepEqual(err, test.wantErr) {
+			t.Errorf("unexpected error for %q: got:%#v want:%#v",
+				test.name, err, test.wantErr)
+			if test.wantErr == nil {
+				continue
+			}
 		}
 		if gotName != test.wantName {
 			t.Errorf("unexpected name for %q: got:%q want:%q",

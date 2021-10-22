@@ -17,8 +17,23 @@ import (
 	"unicode"
 )
 
+// UnalignedFieldsError contains a list of field indexes for fields that are
+// not aligned according to Go type alignment rules and are represented as byte
+// arrays.
+type UnalignedFieldsError struct {
+	Fields    []int  // Fields is a list of unaligned fields.
+	Unaligned []bool // Unaligned[i] is true for field i if it is unaligned.
+}
+
+func (e UnalignedFieldsError) Error() string {
+	return fmt.Sprintf("unaligned fields in struct: %d", e.Fields)
+}
+
 // Struct returns a struct corresponding to the kprobe event format in r,
-// along with the probe's name and id.
+// along with the probe's name and id. Struct attempts to construct the struct
+// with the same types as specified by the event format, but in cases where
+// this is not possible, the fields will be represented as byte arrays of
+// the same size and the field indices will be returned in an UnalignedFieldsError.
 //
 // Structs referencing dynamic arrays as string data hold a 32 bit unsigned
 // value that points to the data with a ctyp field tag with the prefix
@@ -31,9 +46,12 @@ import (
 //     ((__entry->__data_loc_##field >> 16) & 0xffff)
 //
 func Struct(r io.Reader) (typ reflect.Type, name string, id int, err error) {
-	var fields []reflect.StructField
+	var (
+		fields    []reflect.StructField
+		unaligned UnalignedFieldsError
+	)
 	sc := bufio.NewScanner(r)
-	var i, nextOffset int
+	var i, padIdx, nextOffset int
 	for sc.Scan() {
 		b := sc.Bytes()
 		switch {
@@ -50,9 +68,12 @@ func Struct(r io.Reader) (typ reflect.Type, name string, id int, err error) {
 			if err != nil {
 				return nil, "", 0, err
 			}
-			typ, size, err := integerType(f[2], f[3], ctyp)
+			typ, size, fallback, err := integerType(f[2], f[3], ctyp, offset)
 			if err != nil {
 				return nil, "", 0, err
+			}
+			if fallback {
+				unaligned.Fields = append(unaligned.Fields, i)
 			}
 			pad := offset - nextOffset
 			if pad < 0 {
@@ -60,20 +81,22 @@ func Struct(r io.Reader) (typ reflect.Type, name string, id int, err error) {
 			}
 			if pad > 0 {
 				fields = append(fields, reflect.StructField{
-					Name:    fmt.Sprintf("_pad%d", i),
+					Name:    fmt.Sprintf("_pad%d", padIdx),
 					PkgPath: "github.com/kortschak/kprobe", // Needed for testing.
 					Type:    reflect.ArrayOf(pad, reflect.TypeOf(uint8(0))),
 					Offset:  uintptr(nextOffset),
 				})
+				padIdx++
 				i++
 			}
 			fields = append(fields, reflect.StructField{
 				Name:   export(field),
 				Type:   typ,
-				Tag:    reflect.StructTag(fmt.Sprintf(`ctyp:%q json:%q`, ctyp, field)),
+				Tag:    reflect.StructTag(fmt.Sprintf(`ctyp:%q name:%q`, ctyp, field)),
 				Offset: uintptr(offset),
 			})
 			nextOffset = offset + size
+			i++
 		case bytes.HasPrefix(b, []byte("name: ")):
 			name = string(bytes.TrimPrefix(b, []byte("name: ")))
 		case bytes.HasPrefix(b, []byte("ID: ")):
@@ -97,7 +120,14 @@ func Struct(r io.Reader) (typ reflect.Type, name string, id int, err error) {
 			return nil, name, id, fmt.Errorf("could not generate correct field offset for %s: %d != %d", got.Name, got.Offset, want.Offset)
 		}
 	}
-	return typ, name, id, nil
+	if len(unaligned.Fields) != 0 {
+		unaligned.Unaligned = make([]bool, len(fields))
+		for _, i := range unaligned.Fields {
+			unaligned.Unaligned[i] = true
+		}
+		err = unaligned
+	}
+	return typ, name, id, err
 }
 
 // export converts a string to an exported Go label.
@@ -147,31 +177,37 @@ func offset(s string) (int, error) {
 // integerType returns a Go type corresponding to the type specified in a
 // kprobe format based on the size and signed fields and the array spec in
 // the field field, according to https://www.kernel.org/doc/html/latest/trace/kprobetrace.html.
-func integerType(size, signed, ctyp string) (reflect.Type, int, error) {
+// If the alignment of the resulting type is inconsistent with the provided
+// offset, a byte array of the same length is constructed and fallback is
+// returned true.
+func integerType(size, signed, ctyp string, offset int) (typ reflect.Type, bytes int, fallback bool, err error) {
 	size = strings.TrimPrefix(size, "size:")
 	size = strings.TrimSuffix(size, ";")
-	bytes, err := strconv.Atoi(size)
+	bytes, err = strconv.Atoi(size)
 	if err != nil {
-		return nil, 0, fmt.Errorf("invalid size: %w", err)
+		return nil, 0, false, fmt.Errorf("invalid size: %w", err)
 	}
 	signed = strings.TrimPrefix(signed, "signed:")
 	signed = strings.TrimSuffix(signed, ";")
 	s, err := strconv.Atoi(signed)
 	if err != nil {
-		return nil, 0, fmt.Errorf("invalid size: %w", err)
+		return nil, 0, false, fmt.Errorf("invalid size: %w", err)
 	}
 	n, dynamic, err := arraySize(ctyp)
 	if err != nil {
-		return nil, 0, err
+		return nil, 0, false, err
 	}
 	if bytes%n != 0 {
-		return nil, 0, fmt.Errorf("invalid size for array: size=%d elements=%d", bytes, n)
+		return nil, 0, false, fmt.Errorf("invalid size for array: size=%d elements=%d", bytes, n)
 	}
-	typ := integerTypes[typeClass{bytes / n, s == 1 && !dynamic}]
+	typ = integerTypes[typeClass{bytes / n, s == 1 && !dynamic}]
+	if offset%typ.Align() != 0 {
+		return reflect.ArrayOf(bytes, integerTypes[typeClass{1, false}]), bytes, true, nil
+	}
 	if n > 1 {
 		typ = reflect.ArrayOf(n, typ)
 	}
-	return typ, bytes, nil
+	return typ, bytes, false, nil
 }
 
 // arraySize returns the number of elements in an array according to the syntax
