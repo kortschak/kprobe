@@ -22,13 +22,13 @@ gives
 
 ```
 struct {
-	Common_type          uint16   `ctyp:"unsigned short" json:"common_type"`
-	Common_flags         uint8    `ctyp:"unsigned char" json:"common_flags"`
-	Common_preempt_count uint8    `ctyp:"unsigned char" json:"common_preempt_count"`
-	Common_pid           int32    `ctyp:"int" json:"common_pid"`
-	Probe_ip             uint64   `ctyp:"unsigned long" json:"__probe_ip"`
-	Arg1                 uint64   `ctyp:"u64" json:"arg1"`
-	Arg2                 [8]uint8 `ctyp:"u8[8]" json:"arg2"`
+	Common_type          uint16   `ctyp:"unsigned short" name:"common_type"`
+	Common_flags         uint8    `ctyp:"unsigned char" name:"common_flags"`
+	Common_preempt_count uint8    `ctyp:"unsigned char" name:"common_preempt_count"`
+	Common_pid           int32    `ctyp:"int" name:"common_pid"`
+	Probe_ip             uint64   `ctyp:"unsigned long" name:"__probe_ip"`
+	Arg1                 uint64   `ctyp:"u64" name:"arg1"`
+	Arg2                 [8]uint8 `ctyp:"u8[8]" name:"arg2"`
 }
 ```
 
@@ -59,16 +59,16 @@ gives
 
 ```
 struct {
-	Common_type          uint16 `ctyp:"unsigned short" json:"common_type"`
-	Common_flags         uint8  `ctyp:"unsigned char" json:"common_flags"`
-	Common_preempt_count uint8  `ctyp:"unsigned char" json:"common_preempt_count"`
-	Common_pid           int32  `ctyp:"int" json:"common_pid"`
+	Common_type          uint16 `ctyp:"unsigned short" name:"common_type"`
+	Common_flags         uint8  `ctyp:"unsigned char" name:"common_flags"`
+	Common_preempt_count uint8  `ctyp:"unsigned char" name:"common_preempt_count"`
+	Common_pid           int32  `ctyp:"int" name:"common_pid"`
 	_pad0                [4]uint8
-	Probe_ip             uint32 `ctyp:"unsigned long" json:"__probe_ip"`
-	Probe_nargs          int32  `ctyp:"int" json:"__probe_nargs"`
-	Dfd                  uint32 `ctyp:"unsigned long" json:"dfd"`
-	Filename             uint32 `ctyp:"unsigned long" json:"filename"`
-	Flags                uint32 `ctyp:"unsigned long" json:"flags"`
-	Mode                 uint32 `ctyp:"unsigned long" json:"mode"`
+	Probe_ip             uint32 `ctyp:"unsigned long" name:"__probe_ip"`
+	Probe_nargs          int32  `ctyp:"int" name:"__probe_nargs"`
+	Dfd                  uint32 `ctyp:"unsigned long" name:"dfd"`
+	Filename             uint32 `ctyp:"unsigned long" name:"filename"`
+	Flags                uint32 `ctyp:"unsigned long" name:"flags"`
+	Mode                 uint32 `ctyp:"unsigned long" name:"mode"`
 }
 ```
