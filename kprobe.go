@@ -38,6 +38,13 @@ func (e UnalignedFieldsError) Error() string {
 // represented as byte arrays of the same size and the field indices will
 // be returned in an UnalignedFieldsError.
 //
+// C type information and the original C field names are included in struct
+// field tags.
+//
+//  - ctyp: type information
+//  - name: C field name
+//  - unaligned: additional type information for packed fields.
+//
 // Structs referencing dynamic arrays as string data hold a 32 bit unsigned
 // value that points to the data with a ctyp field tag with the prefix
 // __data_loc. The value has the following semantics:
@@ -193,7 +200,7 @@ func init() {
 // Unpack makes of copy of src into dst adjusting the alignment of fields
 // described in the provided unaligned fields error which should be obtained
 // from a call to struct that generated the src type. The dst value must have
-// been created using the type returned from StructFromPacked using the
+// been created using the type returned from UnpackedStructFor using the
 // packed struct type as the input.
 func Unpack(dst, src reflect.Value, unaligned UnalignedFieldsError) error {
 	if !isStructPointer(dst) {
