@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-// Package kprobe provides a way to dynmically generate structs corresponding
+// Package kprobe provides a way to dynamically generate structs corresponding
 // to linux kprobe event messages.
 package kprobe
 
@@ -34,8 +34,9 @@ func (e UnalignedFieldsError) Error() string {
 // Struct returns a struct corresponding to the kprobe event format in r,
 // along with the probe's name and id. Struct attempts to construct the struct
 // with the same types as specified by the event format, but in cases where
-// this is not possible, the fields will be represented as byte arrays of
-// the same size and the field indices will be returned in an UnalignedFieldsError.
+// this is not possible due to alignment, the unaligned fields will be
+// represented as byte arrays of the same size and the field indices will
+// be returned in an UnalignedFieldsError.
 //
 // Structs referencing dynamic arrays as string data hold a 32 bit unsigned
 // value that points to the data with a ctyp field tag with the prefix
@@ -47,7 +48,7 @@ func (e UnalignedFieldsError) Error() string {
 //   #define __get_dynamic_array_len(field)
 //     ((__entry->__data_loc_##field >> 16) & 0xffff)
 //
-func Struct(r io.Reader, aligned bool) (typ reflect.Type, name string, id int, err error) {
+func Struct(r io.Reader) (typ reflect.Type, name string, id int, err error) {
 	var (
 		fields    []reflect.StructField
 		unaligned UnalignedFieldsError
@@ -70,23 +71,23 @@ func Struct(r io.Reader, aligned bool) (typ reflect.Type, name string, id int, e
 			if err != nil {
 				return nil, "", 0, err
 			}
-			typ, size, fallback, err := integerType(f[2], f[3], ctyp, offset, aligned)
+			typ, size, fallback, err := integerType(f[2], f[3], ctyp, offset, true)
 			if err != nil {
 				return nil, "", 0, err
 			}
+			var tag reflect.StructTag
 			if fallback {
 				unaligned.Fields = append(unaligned.Fields, i)
+				tag = reflect.StructTag(fmt.Sprintf(`ctyp:%q name:%q unaligned:"%s %s"`,
+					ctyp, field, f[2], f[3]))
+			} else {
+				tag = reflect.StructTag(fmt.Sprintf(`ctyp:%q name:%q`, ctyp, field))
 			}
 			pad := offset - nextOffset
 			if pad < 0 {
 				panic(fmt.Sprintf("invalid padding: %d", pad))
 			}
 			if pad > 0 {
-				if !aligned {
-					// We don't care about padding, but we
-					// do need field index correspondence.
-					pad = 0
-				}
 				fields = append(fields, reflect.StructField{
 					Name:    fmt.Sprintf("_pad%d", padIdx),
 					PkgPath: "github.com/kortschak/kprobe", // Needed for testing.
@@ -99,7 +100,7 @@ func Struct(r io.Reader, aligned bool) (typ reflect.Type, name string, id int, e
 			fields = append(fields, reflect.StructField{
 				Name:   export(field),
 				Type:   typ,
-				Tag:    reflect.StructTag(fmt.Sprintf(`ctyp:%q name:%q`, ctyp, field)),
+				Tag:    tag,
 				Offset: uintptr(offset),
 			})
 			nextOffset = offset + size
@@ -123,7 +124,7 @@ func Struct(r io.Reader, aligned bool) (typ reflect.Type, name string, id int, e
 		if !ok {
 			return nil, name, id, fmt.Errorf("lost field %s", got.Name)
 		}
-		if aligned && got.Offset != want.Offset {
+		if got.Offset != want.Offset {
 			return nil, name, id, fmt.Errorf("could not generate correct field offset for %s: %d != %d", got.Name, got.Offset, want.Offset)
 		}
 	}
@@ -135,6 +136,44 @@ func Struct(r io.Reader, aligned bool) (typ reflect.Type, name string, id int, e
 		err = unaligned
 	}
 	return typ, name, id, err
+}
+
+// UnpackedStructFor returns an unpacked struct type equivalent to typ, which must
+// have been create with a call to Struct.
+func UnpackedStructFor(typ reflect.Type) (reflect.Type, error) {
+	fields := make([]reflect.StructField, typ.NumField())
+	for i := range fields {
+		f := typ.Field(i)
+		if !f.IsExported() {
+			if strings.HasPrefix(f.Name, "_pad") {
+				f.Type = reflect.ArrayOf(0, reflect.TypeOf(uint8(0)))
+			}
+			fields[i] = f
+			continue
+		}
+
+		unaligned, ok := f.Tag.Lookup("unaligned")
+		if !ok {
+			fields[i] = f
+			continue
+		}
+		tf := strings.Split(unaligned, " ")
+		if len(tf) != 2 {
+			return nil, fmt.Errorf("invalid unaligned tag syntax: %q", unaligned)
+		}
+		ctyp, ok := f.Tag.Lookup("ctyp")
+		if !ok {
+			return nil, fmt.Errorf("missing ctyp tag for unaligned field %s: %#q", f.Name, f.Tag)
+		}
+		var err error
+		f.Type, _, _, err = integerType(tf[0], tf[1], ctyp, int(f.Offset), false)
+		if err != nil {
+			return nil, err
+		}
+		f.Tag = f.Tag[:strings.Index(string(f.Tag), " unaligned")]
+		fields[i] = f
+	}
+	return reflect.StructOf(fields), nil
 }
 
 var machine binary.ByteOrder
@@ -151,11 +190,12 @@ func init() {
 	}
 }
 
-// Copy makes of copy of src into dst adjusting the alignment of fields
+// Unpack makes of copy of src into dst adjusting the alignment of fields
 // described in the provided unaligned fields error which should be obtained
-// from a call to struct that generated the src type with the aligned
-// parameter true.
-func Copy(dst, src reflect.Value, unaligned UnalignedFieldsError) error {
+// from a call to struct that generated the src type. The dst value must have
+// been created using the type returned from StructFromPacked using the
+// packed struct type as the input.
+func Unpack(dst, src reflect.Value, unaligned UnalignedFieldsError) error {
 	if !isStructPointer(dst) {
 		return fmt.Errorf("invalid type: %T", dst)
 	}

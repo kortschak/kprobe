@@ -35,7 +35,7 @@ format:
 print fmt: "(%lx) sock=0x%Lx size=%u af=%u laddr=%u lport=%u raddr=%u rport=%u", REC->__probe_ip, REC->sock, REC->size, REC->af, REC->laddr, REC->lport, REC->raddr, REC->rport
 `
 
-	srcTyp, name, id, err := kprobe.Struct(strings.NewReader(format), true)
+	srcTyp, name, id, err := kprobe.Struct(strings.NewReader(format))
 	var unaligned kprobe.UnalignedFieldsError
 	if err != nil {
 		var ok bool
@@ -58,12 +58,12 @@ print fmt: "(%lx) sock=0x%Lx size=%u af=%u laddr=%u lport=%u raddr=%u rport=%u",
 	src := reflect.NewAt(srcTyp, unsafe.Pointer(&data[0]))
 	fmt.Printf("src: %+v\n", src)
 
-	dstTyp, _, _, err := kprobe.Struct(strings.NewReader(format), false)
+	dstTyp, err := kprobe.UnpackedStructFor(srcTyp)
 	if err != nil {
 		log.Fatal(err)
 	}
 	dst := reflect.New(dstTyp)
-	err = kprobe.Copy(dst, src, unaligned)
+	err = kprobe.Unpack(dst, src, unaligned)
 	if err != nil {
 		fmt.Println(err)
 	}

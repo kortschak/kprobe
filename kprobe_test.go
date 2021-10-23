@@ -228,7 +228,7 @@ print fmt: "(%lx) sock=0x%Lx size=%u af=%u laddr=%u lport=%u raddr=%u rport=%u",
 			Sock                 uint64   `ctyp:"u64" name:"sock"`
 			Size                 uint32   `ctyp:"u32" name:"size"`
 			Af                   uint16   `ctyp:"u16" name:"af"`
-			Laddr                [4]uint8 `ctyp:"u32" name:"laddr"`
+			Laddr                [4]uint8 `ctyp:"u32" name:"laddr" unaligned:"size:4; signed:0;"`
 			Lport                uint16   `ctyp:"u16" name:"lport"`
 			Raddr                uint32   `ctyp:"u32" name:"raddr"`
 			Rport                uint16   `ctyp:"u16" name:"rport"`
@@ -256,7 +256,7 @@ print fmt: "(%lx) sock=0x%Lx size=%u af=%u laddr=%u lport=%u raddr=%u rport=%u",
 
 func TestStruct(t *testing.T) {
 	for _, test := range formatTests {
-		typAligned, gotName, gotID, err := Struct(strings.NewReader(test.format), true)
+		typAligned, gotName, gotID, err := Struct(strings.NewReader(test.format))
 		if !reflect.DeepEqual(err, test.wantErr) {
 			t.Errorf("unexpected error for aligned %q: got:%#v want:%#v",
 				test.name, err, test.wantErr)
@@ -272,40 +272,32 @@ func TestStruct(t *testing.T) {
 			t.Errorf("unexpected ID for %q: got:%d want:%d",
 				test.name, gotID, test.wantID)
 		}
+		checkStruct(t, test.name, typAligned, test.wantAligned)
 
-		wv := reflect.ValueOf(test.wantAligned)
-		if !wv.CanConvert(typAligned) {
-			t.Errorf("unexpected struct for %q:\ngot: %T\nwant:%T",
-				test.name, reflect.New(typAligned).Elem().Interface(), test.wantAligned)
-		}
-
-		wt := wv.Type()
-		for i := 0; i < wt.NumField(); i++ {
-			if wt.Field(i).Tag != typAligned.Field(i).Tag {
-				t.Errorf("unexpected struct tag for %q %s: got:%#q want:%#q",
-					test.name, wt.Field(i).Name, typAligned.Field(i).Tag, wt.Field(i).Tag)
-			}
-		}
-
-		typUnaligned, _, _, err := Struct(strings.NewReader(test.format), false)
+		typUnaligned, err := UnpackedStructFor(typAligned)
 		if err != nil {
-			t.Errorf("unexpected error for unaligned %q: got:%#v want:%#v",
+			t.Errorf("unexpected error for unaligned from type %q: got:%#v want:%#v",
 				test.name, err, test.wantErr)
 			continue
 		}
+		checkStruct(t, test.name, typUnaligned, test.wantUnaligned)
+	}
+}
 
-		wvu := reflect.ValueOf(test.wantUnaligned)
-		if !wvu.CanConvert(typUnaligned) {
-			t.Errorf("unexpected struct for %q:\ngot: %T\nwant:%T",
-				test.name, reflect.New(typUnaligned).Elem().Interface(), test.wantUnaligned)
-		}
+func checkStruct(t *testing.T, name string, got reflect.Type, want interface{}) {
+	t.Helper()
 
-		wtu := wvu.Type()
-		for i := 0; i < wt.NumField(); i++ {
-			if wtu.Field(i).Tag != typUnaligned.Field(i).Tag {
-				t.Errorf("unexpected struct tag for %q %s: got:%#q want:%#q",
-					test.name, wtu.Field(i).Name, typUnaligned.Field(i).Tag, wtu.Field(i).Tag)
-			}
+	wv := reflect.ValueOf(want)
+	if !wv.CanConvert(got) {
+		t.Errorf("unexpected struct for %q:\ngot: %T\nwant:%T",
+			name, reflect.New(got).Elem().Interface(), want)
+	}
+
+	wt := wv.Type()
+	for i := 0; i < wt.NumField(); i++ {
+		if wt.Field(i).Tag != got.Field(i).Tag {
+			t.Errorf("unexpected struct tag for %q %s: got:%#q want:%#q",
+				name, wt.Field(i).Name, got.Field(i).Tag, wt.Field(i).Tag)
 		}
 	}
 }
