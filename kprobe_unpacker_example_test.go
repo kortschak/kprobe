@@ -58,7 +58,7 @@ func (u Unpacker) Register(format io.Reader) (name string, err error) {
 }
 
 // Unpack parses the provided date and returns the name of the event and
-// a struct holding the event details.
+// a pointer to a struct holding the event details.
 func (u Unpacker) Unpack(data []byte) (string, reflect.Value, error) {
 	if len(data) < 8 {
 		return "", reflect.Value{}, io.ErrUnexpectedEOF
