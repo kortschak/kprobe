@@ -3,8 +3,10 @@
 // license that can be found in the LICENSE file.
 
 // Package kprobe provides a way to dynamically generate structs corresponding
-// to linux kprobe event messages.
+// to linux kprobe event messages and deserialise message data.
 package kprobe
+
+import "C" // C imports is required for obtaining C type size information.
 
 import (
 	"bufio"
@@ -159,6 +161,16 @@ func UnpackedStructFor(typ reflect.Type) (reflect.Type, error) {
 			continue
 		}
 
+		if ctyp := f.Tag.Get("ctyp"); strings.HasPrefix(ctyp, "__data_loc") {
+			typ, err := dynamicArray(strings.TrimPrefix(ctyp, "__data_loc "))
+			if err != nil {
+				return nil, err
+			}
+			f.Type = typ
+			fields[i] = f
+			continue
+		}
+
 		unaligned, ok := f.Tag.Lookup("unaligned")
 		if !ok {
 			fields[i] = f
@@ -201,8 +213,12 @@ func init() {
 // described in the provided unaligned fields error which should be obtained
 // from a call to struct that generated the src type. The dst value must have
 // been created using the type returned from UnpackedStructFor using the
-// packed struct type as the input.
-func Unpack(dst, src reflect.Value, unaligned UnalignedFieldsError) error {
+// packed struct type as the input. The contents of data is the complete
+// event message, required for unpacking dynamic array data. Dynamic arrays
+// and strings do not have any terminating null bytes removed. If data is
+// used during unpacking, the destination struct retains a reference to the
+// memory in data.
+func Unpack(dst, src reflect.Value, unaligned UnalignedFieldsError, data []byte) error {
 	if !isStructPointer(dst) {
 		return fmt.Errorf("invalid type: %T", dst)
 	}
@@ -226,6 +242,58 @@ func Unpack(dst, src reflect.Value, unaligned UnalignedFieldsError) error {
 			continue
 		}
 		if !dstTyp.Field(i).IsExported() || !srcTyp.Field(i).IsExported() {
+			continue
+		}
+		if ctyp := srcTyp.Field(i).Tag.Get("ctyp"); strings.HasPrefix(ctyp, "__data_loc") {
+			typ := srcTyp.Field(i).Type
+			if typ.Kind() != reflect.Uint32 {
+				return fmt.Errorf("invalid type for dynamic array: %s", typ)
+			}
+			v := src.Field(i).Uint()
+			off := int(v & 0xffff)
+			n := int(v >> 16)
+			if off > len(data) || off+n > len(data) {
+				return fmt.Errorf("invalid dynamic data indexes: offset=%d len=%d", off, n)
+			}
+			data := data[off:]
+			if len(data) == 0 {
+				continue
+			}
+			class := dynamicArrayTypes[strings.TrimPrefix(ctyp, "__data_loc ")]
+			if class.signed {
+				switch class.size {
+				case 1:
+					s8 := unsafe.Slice((*int8)(unsafe.Pointer(&data[0])), n)
+					dst.Field(i).Set(reflect.ValueOf(s8))
+				case 2:
+					s16 := unsafe.Slice((*int16)(unsafe.Pointer(&data[0])), n/2)
+					dst.Field(i).Set(reflect.ValueOf(s16))
+				case 4:
+					s32 := unsafe.Slice((*uint32)(unsafe.Pointer(&data[0])), n/4)
+					dst.Field(i).Set(reflect.ValueOf(s32))
+				case 8:
+					s64 := unsafe.Slice((*uint64)(unsafe.Pointer(&data[0])), n/8)
+					dst.Field(i).Set(reflect.ValueOf(s64))
+				default:
+					panic(fmt.Sprintf("invalid type typeclass size: %d", class.size))
+				}
+			} else {
+				switch class.size {
+				case 1:
+					dst.Field(i).SetBytes(data[:n])
+				case 2:
+					u16 := unsafe.Slice((*uint16)(unsafe.Pointer(&data[0])), n/2)
+					dst.Field(i).Set(reflect.ValueOf(u16))
+				case 4:
+					u32 := unsafe.Slice((*uint32)(unsafe.Pointer(&data[0])), n/4)
+					dst.Field(i).Set(reflect.ValueOf(u32))
+				case 8:
+					u64 := unsafe.Slice((*uint64)(unsafe.Pointer(&data[0])), n/8)
+					dst.Field(i).Set(reflect.ValueOf(u64))
+				default:
+					panic(fmt.Sprintf("invalid type typeclass size: %d", class.size))
+				}
+			}
 			continue
 		}
 		if !src.Field(i).Type().AssignableTo(dst.Field(i).Type()) {
@@ -279,6 +347,16 @@ func Unpack(dst, src reflect.Value, unaligned UnalignedFieldsError) error {
 
 func isStructPointer(v reflect.Value) bool {
 	return v.Kind() == reflect.Ptr && v.Elem().Kind() == reflect.Struct
+}
+
+// dynamicArray returns a []T corresponding to the given ctyp[]. ctyp is expected
+// to be just the C type, without the __data_loc prefix.
+func dynamicArray(ctyp string) (reflect.Type, error) {
+	class, ok := dynamicArrayTypes[strings.TrimLeft(ctyp, "_")]
+	if !ok {
+		return nil, fmt.Errorf("unsupported dynamic array element type: %s", ctyp)
+	}
+	return reflect.SliceOf(integerTypes[class]), nil
 }
 
 // export converts a string to an exported Go label.
@@ -400,4 +478,32 @@ var integerTypes = map[typeClass]reflect.Type{
 	{2, false}: reflect.TypeOf(uint16(0)),
 	{4, false}: reflect.TypeOf(uint32(0)),
 	{8, false}: reflect.TypeOf(uint64(0)),
+}
+
+var dynamicArrayTypes = map[string]typeClass{
+	"char[]":  {int(unsafe.Sizeof(C.char(0))), false}, // Special case char to uint8.
+	"schar[]": {int(unsafe.Sizeof(C.schar(0))), true},
+	"uchar[]": {int(unsafe.Sizeof(C.uchar(0))), false},
+
+	"short[]":          {int(unsafe.Sizeof(C.short(0))), true},
+	"signed short[]":   {int(unsafe.Sizeof(C.short(0))), true},
+	"unsigned short[]": {int(unsafe.Sizeof(C.ushort(0))), false},
+
+	"long[]":          {int(unsafe.Sizeof(C.long(0))), true},
+	"signed long[]":   {int(unsafe.Sizeof(C.long(0))), true},
+	"unsigned long[]": {int(unsafe.Sizeof(C.ulong(0))), false},
+
+	"long long[]":          {int(unsafe.Sizeof(C.longlong(0))), true},
+	"signed long long[]":   {int(unsafe.Sizeof(C.longlong(0))), true},
+	"unsigned long long[]": {int(unsafe.Sizeof(C.ulonglong(0))), false},
+
+	"s8[]":  {1, true},
+	"s16[]": {2, true},
+	"s32[]": {4, true},
+	"s64[]": {8, true},
+
+	"u8[]":  {1, false},
+	"u16[]": {2, false},
+	"u32[]": {4, false},
+	"u64[]": {8, false},
 }
