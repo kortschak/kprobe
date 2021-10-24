@@ -29,7 +29,7 @@ type UnalignedFieldsError struct {
 	Fields    []int  // Fields is a list of unaligned fields.
 	Unaligned []bool // Unaligned[i] is true for field i if it is unaligned.
 
-	// DynamicArray indicates the struct has at a __loc_data field.
+	// DynamicArray indicates the struct has a __data_loc field.
 	DynamicArray bool
 }
 
