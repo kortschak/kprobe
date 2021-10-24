@@ -15,15 +15,20 @@ import (
 	"github.com/kortschak/kprobe"
 )
 
-type Unpacker map[string]func(data []byte) (interface{}, error)
+// Unpacker is a minimal kprobe event handler.
+type Unpacker map[uint16]func(data []byte) (string, interface{}, error)
 
+// Register registers a kprobe event format and returns the event's name.
 func (u Unpacker) Register(format io.Reader) (name string, err error) {
-	srcTyp, name, _, err := kprobe.Struct(format)
+	srcTyp, name, id, size, err := kprobe.Struct(format)
 	if err == nil {
 		// Fast path with layout consistent between kprobe
 		// event and Go struct.
-		u[name] = func(data []byte) (interface{}, error) {
-			return reflect.NewAt(srcTyp, unsafe.Pointer(&data[0])), nil
+		u[id] = func(data []byte) (string, interface{}, error) {
+			if len(data) < size {
+				return "", nil, io.ErrUnexpectedEOF
+			}
+			return name, reflect.NewAt(srcTyp, unsafe.Pointer(&data[0])), nil
 		}
 		return name, nil
 	}
@@ -40,26 +45,35 @@ func (u Unpacker) Register(format io.Reader) (name string, err error) {
 		return "", err
 	}
 	// Slow path with either unaligned fields or dynamic arrays.
-	u[name] = func(data []byte) (interface{}, error) {
+	u[id] = func(data []byte) (string, interface{}, error) {
+		if len(data) < size {
+			return "", nil, io.ErrUnexpectedEOF
+		}
 		src := reflect.NewAt(srcTyp, unsafe.Pointer(&data[0]))
 		dst := reflect.New(dstTyp)
 		err = kprobe.Unpack(dst, src, unaligned, data)
-		return dst, err
+		return name, dst, err
 	}
 	return name, nil
 }
 
-func (u Unpacker) Unpack(stream string, data []byte) (interface{}, error) {
-	f, ok := u[stream]
+// Unpack parses the provided date and returns the name of the event and
+// a struct holding the event details.
+func (u Unpacker) Unpack(data []byte) (string, interface{}, error) {
+	if len(data) < 8 {
+		return "", nil, io.ErrUnexpectedEOF
+	}
+	typ := *(*uint16)(unsafe.Pointer(&data[0]))
+	f, ok := u[typ]
 	if !ok {
-		return nil, fmt.Errorf("no unpacker for %s", stream)
+		return "", nil, fmt.Errorf("no unpacker for event id=%d", typ)
 	}
 	return f(data)
 }
 
 var formats = []string{
 	`name: do_sys_open
-ID: 7021
+ID: 7090
 format:
 	field:unsigned short common_type;	offset:0;	size:2;	signed:0;
 	field:unsigned char common_flags;	offset:2;	size:1;	signed:0;
@@ -73,7 +87,7 @@ format:
 	field:u32 mode;	offset:28;	size:4;	signed:0;
 `,
 	`name: ip_local_out_call
-ID: 3226
+ID: 3965
 format:
 	field:unsigned short common_type;	offset:0;	size:2;	signed:0;
 	field:unsigned char common_flags;	offset:2;	size:1;	signed:0;
@@ -119,57 +133,45 @@ func Example_unpacker() {
 	}
 
 	// Process stream of events.
-	events := []struct {
-		stream string
-		data   []byte
-	}{
-		{
-			stream: "do_sys_open",
-			data: []byte{
-				0xb2, 0x1b, 0x00, 0x00, 0xc1, 0x7f, 0x00, 0x00,
-				0xf0, 0xa1, 0x6d, 0xae, 0xff, 0xff, 0xff, 0xff,
-				0x30, 0xa5, 0x6d, 0xae, 0x20, 0x00, 0x0a, 0x00,
-				0x41, 0x82, 0x08, 0x00, 0xa4, 0x01, 0x00, 0x00,
-				0x66, 0x69, 0x6c, 0x65, 0x2e, 0x74, 0x65, 0x78,
-				0x74, 0x00, 0x00, 0x00,
-			},
+	events := [][]byte{
+		{ // do_sys_open
+			0xb2, 0x1b, 0x00, 0x00, 0xc1, 0x7f, 0x00, 0x00,
+			0xf0, 0xa1, 0x6d, 0xae, 0xff, 0xff, 0xff, 0xff,
+			0x30, 0xa5, 0x6d, 0xae, 0x20, 0x00, 0x0a, 0x00,
+			0x41, 0x82, 0x08, 0x00, 0xa4, 0x01, 0x00, 0x00,
+			0x66, 0x69, 0x6c, 0x65, 0x2e, 0x74, 0x65, 0x78,
+			0x74, 0x00, 0x00, 0x00,
 		},
-		{
-			stream: "ip_local_out_call",
-			data: []byte{
-				0x7d, 0x0f, 0x00, 0x00, 0xc7, 0x29, 0x00, 0x00,
-				0x0f, 0x2b, 0xdb, 0xef, 0x00, 0x00, 0x00, 0x00,
-				0x40, 0xe0, 0x73, 0x97, 0x7d, 0x9e, 0x00, 0x00,
-				0x3c, 0x00, 0x00, 0x00, 0x02, 0x00, 0x7f, 0x00,
-				0x00, 0x01, 0xde, 0xad, 0x7f, 0x00, 0x00, 0x01,
-				0xbe, 0xef, 0x00, 0x00,
-			},
+		{ // ip_local_out_call
+			0x7d, 0x0f, 0x00, 0x00, 0xc7, 0x29, 0x00, 0x00,
+			0x0f, 0x2b, 0xdb, 0xef, 0x00, 0x00, 0x00, 0x00,
+			0x40, 0xe0, 0x73, 0x97, 0x7d, 0x9e, 0x00, 0x00,
+			0x3c, 0x00, 0x00, 0x00, 0x02, 0x00, 0x7f, 0x00,
+			0x00, 0x01, 0xde, 0xad, 0x7f, 0x00, 0x00, 0x01,
+			0xbe, 0xef, 0x00, 0x00,
 		},
-		{
-			stream: "vfs_read",
-			data: []byte{
-				0x4e, 0xd1, 0x00, 0x00, 0x73, 0x1e, 0x00, 0x00,
-				0x0f, 0xeb, 0xd4, 0x3f, 0x00, 0x00, 0x00, 0x00,
-				0xb0, 0x1d, 0xfa, 0xce, 0x11, 0xe5, 0x00, 0x00,
-				0x52, 0x12, 0x1b, 0x81, 0xff, 0xff, 0xff, 0xff,
-			},
+		{ // vfs_read
+			0x02, 0x0f, 0x00, 0x00, 0x73, 0x1e, 0x00, 0x00,
+			0x0f, 0xeb, 0xd4, 0x3f, 0x00, 0x00, 0x00, 0x00,
+			0xb0, 0x1d, 0xfa, 0xce, 0x11, 0xe5, 0x00, 0x00,
+			0x52, 0x12, 0x1b, 0x81, 0xff, 0xff, 0xff, 0xff,
 		},
 	}
 
 	for _, e := range events {
-		v, err := u.Unpack(e.stream, e.data)
+		name, event, err := u.Unpack(e)
 		if err != nil {
 			log.Fatal(err)
 		}
 
-		fmt.Printf("%+v\n", v)
+		fmt.Printf("%s: %+v\n", name, event)
 	}
 
 	// Output:
 	// registered: do_sys_open
 	// registered: ip_local_out_call
 	// registered: vfs_read
-	// &{Common_type:7090 Common_flags:0 Common_preempt_count:0 Common_pid:32705 Probe_ip:18446744072341004784 Dfd:2926421296 Filename:[102 105 108 101 46 116 101 120 116 0] Flags:557633 Mode:420}
-	// &{Common_type:3965 Common_flags:0 Common_preempt_count:0 Common_pid:10695 Probe_ip:4024118031 Sock:174262249054272 Size:60 Af:2 Laddr:16777343 Lport:44510 Raddr:16777343 Rport:61374}
-	// &{Common_type:53582 Common_flags:0 Common_preempt_count:0 Common_pid:7795 Probe_ip:1070918415 Arg1:251864649702832 Arg2:[82 18 27 129 255 255 255 255]}
+	// do_sys_open: &{Common_type:7090 Common_flags:0 Common_preempt_count:0 Common_pid:32705 Probe_ip:18446744072341004784 Dfd:2926421296 Filename:[102 105 108 101 46 116 101 120 116 0] Flags:557633 Mode:420}
+	// ip_local_out_call: &{Common_type:3965 Common_flags:0 Common_preempt_count:0 Common_pid:10695 Probe_ip:4024118031 Sock:174262249054272 Size:60 Af:2 Laddr:16777343 Lport:44510 Raddr:16777343 Rport:61374}
+	// vfs_read: &{Common_type:3842 Common_flags:0 Common_preempt_count:0 Common_pid:7795 Probe_ip:1070918415 Arg1:251864649702832 Arg2:[82 18 27 129 255 255 255 255]}
 }

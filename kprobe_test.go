@@ -15,7 +15,8 @@ var formatTests = []struct {
 	name          string
 	format        string
 	wantName      string
-	wantID        int
+	wantID        uint16
+	wantSize      int
 	wantAligned   interface{}
 	wantUnaligned interface{}
 	wantErr       error
@@ -43,6 +44,7 @@ REC->dfd, REC->filename, REC->flags, REC->mode
 `,
 		wantName: "myprobe",
 		wantID:   780,
+		wantSize: 36,
 		wantAligned: struct {
 			Common_type          uint16 `ctyp:"unsigned short" name:"common_type"`
 			Common_flags         uint8  `ctyp:"unsigned char" name:"common_flags"`
@@ -93,6 +95,7 @@ REC->dfd, REC->filename, REC->flags, REC->mode
 `,
 		wantName: "myprobe",
 		wantID:   780,
+		wantSize: 40,
 		wantAligned: struct {
 			Common_type          uint16 `ctyp:"unsigned short" name:"common_type"`
 			Common_flags         uint8  `ctyp:"unsigned char" name:"common_flags"`
@@ -138,6 +141,7 @@ print fmt: "(%lx) arg1=0x%Lx arg2={0x%x,0x%x,0x%x,0x%x,0x%x,0x%x,0x%x,0x%x}", RE
 `,
 		wantName: "p_vfs_read_0",
 		wantID:   3842,
+		wantSize: 32,
 		wantAligned: struct {
 			Common_type          uint16   `ctyp:"unsigned short" name:"common_type"`
 			Common_flags         uint8    `ctyp:"unsigned char" name:"common_flags"`
@@ -176,6 +180,7 @@ print fmt: "%s %s len %zu", __get_str(driver), __get_str(device), REC->buf_len
 `,
 		wantName: "ath10k_htt_stats",
 		wantID:   2059,
+		wantSize: 28,
 		wantAligned: struct {
 			Common_type          uint16 `ctyp:"unsigned short" name:"common_type"`
 			Common_flags         uint8  `ctyp:"unsigned char" name:"common_flags"`
@@ -224,6 +229,7 @@ print fmt: "(%lx) sock=0x%Lx size=%u af=%u laddr=%u lport=%u raddr=%u rport=%u",
 `,
 		wantName: "ip_local_out_call",
 		wantID:   3226,
+		wantSize: 42,
 		wantAligned: struct {
 			Common_type          uint16   `ctyp:"unsigned short" name:"common_type"`
 			Common_flags         uint8    `ctyp:"unsigned char" name:"common_flags"`
@@ -275,6 +281,7 @@ print fmt: ""%s" %x %o", __get_str(filename), REC->flags, REC->mode
 `,
 		wantName: "do_sys_open",
 		wantID:   656,
+		wantSize: 20,
 		wantAligned: struct {
 			Common_type          uint16 `ctyp:"unsigned short" name:"common_type"`
 			Common_flags         uint8  `ctyp:"unsigned char" name:"common_flags"`
@@ -302,7 +309,7 @@ print fmt: ""%s" %x %o", __get_str(filename), REC->flags, REC->mode
 
 func TestStruct(t *testing.T) {
 	for _, test := range formatTests {
-		typAligned, gotName, gotID, err := Struct(strings.NewReader(test.format))
+		typAligned, gotName, gotID, gotSize, err := Struct(strings.NewReader(test.format))
 		if !reflect.DeepEqual(err, test.wantErr) {
 			t.Errorf("unexpected error for aligned %q: got:%#v want:%#v",
 				test.name, err, test.wantErr)
@@ -317,6 +324,10 @@ func TestStruct(t *testing.T) {
 		if gotID != test.wantID {
 			t.Errorf("unexpected ID for %q: got:%d want:%d",
 				test.name, gotID, test.wantID)
+		}
+		if gotSize != test.wantSize {
+			t.Errorf("unexpected size for %q: got:%d want:%d",
+				test.name, gotSize, test.wantSize)
 		}
 		checkStruct(t, test.name, typAligned, test.wantAligned)
 
@@ -470,7 +481,7 @@ print fmt: "vgpu%d ring %d: address_type %u, buf_type %u, ip_gma %08x,cmd (name=
 
 func TestUnpack(t *testing.T) {
 	for _, test := range unpackTests {
-		srcTyp, _, _, err := Struct(strings.NewReader(test.format))
+		srcTyp, _, _, _, err := Struct(strings.NewReader(test.format))
 		var unaligned UnalignedFieldsError
 		if err != nil {
 			var ok bool

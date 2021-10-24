@@ -16,7 +16,7 @@ import (
 
 func ExampleStruct() {
 	format := `name: ip_local_out_call
-ID: 3226
+ID: 3965
 format:
 	field:unsigned short common_type;	offset:0;	size:2;	signed:0;
 	field:unsigned char common_flags;	offset:2;	size:1;	signed:0;
@@ -35,7 +35,7 @@ format:
 print fmt: "(%lx) sock=0x%Lx size=%u af=%u laddr=%u lport=%u raddr=%u rport=%u", REC->__probe_ip, REC->sock, REC->size, REC->af, REC->laddr, REC->lport, REC->raddr, REC->rport
 `
 
-	srcTyp, name, id, err := kprobe.Struct(strings.NewReader(format))
+	srcTyp, name, id, _, err := kprobe.Struct(strings.NewReader(format))
 	var unaligned kprobe.UnalignedFieldsError
 	if err != nil {
 		var ok bool
@@ -71,14 +71,14 @@ print fmt: "(%lx) sock=0x%Lx size=%u af=%u laddr=%u lport=%u raddr=%u rport=%u",
 
 	// Output:
 	// warning: unaligned fields in struct: [8]
-	// ip_local_out_call 3226
+	// ip_local_out_call 3965
 	// src: &{Common_type:3965 Common_flags:0 Common_preempt_count:0 Common_pid:10695 Probe_ip:4024118031 Sock:174262249054272 Size:60 Af:2 Laddr:[127 0 0 1] Lport:44510 Raddr:16777343 Rport:61374}
 	// dst: &{Common_type:3965 Common_flags:0 Common_preempt_count:0 Common_pid:10695 Probe_ip:4024118031 Sock:174262249054272 Size:60 Af:2 Laddr:16777343 Lport:44510 Raddr:16777343 Rport:61374}
 }
 
 func ExampleUnpack() {
 	format := `name: do_sys_open
-ID: 7021
+ID: 7090
 format:
 	field:unsigned short common_type;	offset:0;	size:2;	signed:0;
 	field:unsigned char common_flags;	offset:2;	size:1;	signed:0;
@@ -92,7 +92,7 @@ format:
 	field:u32 mode;	offset:28;	size:4;	signed:0;
 `
 
-	srcTyp, name, id, err := kprobe.Struct(strings.NewReader(format))
+	srcTyp, name, id, _, err := kprobe.Struct(strings.NewReader(format))
 	var unaligned kprobe.UnalignedFieldsError
 	if err != nil {
 		var ok bool
@@ -128,7 +128,7 @@ format:
 
 	// Output:
 	// warning: dynamic array in struct
-	// do_sys_open 7021
+	// do_sys_open 7090
 	// src: &{Common_type:7090 Common_flags:0 Common_preempt_count:0 Common_pid:32705 Probe_ip:18446744072341004784 Dfd:2926421296 Filename:655392 Flags:557633 Mode:420}
 	// dst: &{Common_type:7090 Common_flags:0 Common_preempt_count:0 Common_pid:32705 Probe_ip:18446744072341004784 Dfd:2926421296 Filename:[102 105 108 101 46 116 101 120 116 0] Flags:557633 Mode:420}
 }

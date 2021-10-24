@@ -14,6 +14,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
+	"math"
 	"reflect"
 	"strconv"
 	"strings"
@@ -67,7 +68,7 @@ func (e UnalignedFieldsError) Error() string {
 //   #define __get_dynamic_array_len(field)
 //     ((__entry->__data_loc_##field >> 16) & 0xffff)
 //
-func Struct(r io.Reader) (typ reflect.Type, name string, id int, err error) {
+func Struct(r io.Reader) (typ reflect.Type, name string, id uint16, size int, err error) {
 	var (
 		fields    []reflect.StructField
 		unaligned UnalignedFieldsError
@@ -80,22 +81,22 @@ func Struct(r io.Reader) (typ reflect.Type, name string, id int, err error) {
 		case bytes.HasPrefix(b, []byte("\tfield:")):
 			f := strings.Split(strings.TrimPrefix(sc.Text(), "\t"), "\t")
 			if len(f) != 4 {
-				return nil, "", 0, fmt.Errorf("invalid field line: %q", b)
+				return nil, "", 0, 0, fmt.Errorf("invalid field line: %q", b)
 			}
 			ctyp, field, err := fieldName(f[0])
 			if err != nil {
-				return nil, "", 0, err
+				return nil, "", 0, 0, err
 			}
 			if strings.HasPrefix(ctyp, "__data_loc") {
 				unaligned.DynamicArray = true
 			}
 			offset, err := offset(f[1])
 			if err != nil {
-				return nil, "", 0, err
+				return nil, "", 0, 0, err
 			}
 			typ, size, fallback, err := integerType(f[2], f[3], ctyp, offset, true)
 			if err != nil {
-				return nil, "", 0, err
+				return nil, "", 0, 0, err
 			}
 			var tag reflect.StructTag
 			if fallback {
@@ -130,24 +131,28 @@ func Struct(r io.Reader) (typ reflect.Type, name string, id int, err error) {
 		case bytes.HasPrefix(b, []byte("name: ")):
 			name = string(bytes.TrimPrefix(b, []byte("name: ")))
 		case bytes.HasPrefix(b, []byte("ID: ")):
-			id, err = strconv.Atoi(strings.TrimPrefix(sc.Text(), "ID: "))
+			n, err := strconv.Atoi(strings.TrimPrefix(sc.Text(), "ID: "))
 			if err != nil {
-				return nil, "", 0, err
+				return nil, "", 0, 0, err
 			}
+			if n > math.MaxUint16 {
+				return nil, "", 0, 0, fmt.Errorf("format id overflows uint16: %d", n)
+			}
+			id = uint16(n)
 		}
 	}
 	err = sc.Err()
 	if err != nil {
-		return nil, "", 0, err
+		return nil, "", 0, 0, err
 	}
 	typ = reflect.StructOf(fields)
 	for _, want := range fields {
 		got, ok := typ.FieldByName(want.Name)
 		if !ok {
-			return nil, name, id, fmt.Errorf("lost field %s", got.Name)
+			return nil, name, id, 0, fmt.Errorf("lost field %s", got.Name)
 		}
 		if got.Offset != want.Offset {
-			return nil, name, id, fmt.Errorf("could not generate correct field offset for %s: %d != %d", got.Name, got.Offset, want.Offset)
+			return nil, name, id, 0, fmt.Errorf("could not generate correct field offset for %s: %d != %d", got.Name, got.Offset, want.Offset)
 		}
 	}
 	if len(unaligned.Fields) != 0 || unaligned.DynamicArray {
@@ -157,7 +162,12 @@ func Struct(r io.Reader) (typ reflect.Type, name string, id int, err error) {
 		}
 		err = unaligned
 	}
-	return typ, name, id, err
+
+	// We cannot use unsafe.Sizeof or reflect Type.Size to determine
+	// the struct size because the finale field may be padded.
+	size = nextOffset
+
+	return typ, name, id, size, err
 }
 
 // UnpackedStructFor returns an unpacked struct type equivalent to typ, which must
