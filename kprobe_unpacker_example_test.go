@@ -107,7 +107,7 @@ print fmt: "(%lx) arg1=0x%Lx arg2={0x%x,0x%x,0x%x,0x%x,0x%x,0x%x,0x%x,0x%x}", RE
 `,
 }
 
-func ExampleUnpacker() {
+func Example_unpacker() {
 	// Perform one-time format registration.
 	u := make(Unpacker)
 	for _, f := range formats {
