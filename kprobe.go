@@ -288,7 +288,7 @@ func Unpack(dst, src reflect.Value, unaligned UnalignedFieldsError, data []byte)
 					s64 := unsafe.Slice((*uint64)(unsafe.Pointer(&data[0])), n/8)
 					dst.Field(i).Set(reflect.ValueOf(s64))
 				default:
-					panic(fmt.Sprintf("invalid type typeclass size: %d", class.size))
+					panic(fmt.Sprintf("invalid typeclass size: %d", class.size))
 				}
 			} else {
 				switch class.size {
@@ -304,7 +304,7 @@ func Unpack(dst, src reflect.Value, unaligned UnalignedFieldsError, data []byte)
 					u64 := unsafe.Slice((*uint64)(unsafe.Pointer(&data[0])), n/8)
 					dst.Field(i).Set(reflect.ValueOf(u64))
 				default:
-					panic(fmt.Sprintf("invalid type typeclass size: %d", class.size))
+					panic(fmt.Sprintf("invalid typeclass size: %d", class.size))
 				}
 			}
 			continue
