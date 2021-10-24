@@ -17,7 +17,7 @@ import (
 
 type Unpacker map[string]func(data []byte) (interface{}, error)
 
-func (u Unpacker) Register(format io.Reader) error {
+func (u Unpacker) Register(format io.Reader) (name string, err error) {
 	srcTyp, name, _, err := kprobe.Struct(format)
 	if err == nil {
 		// Fast path with layout consistent between kprobe
@@ -25,19 +25,19 @@ func (u Unpacker) Register(format io.Reader) error {
 		u[name] = func(data []byte) (interface{}, error) {
 			return reflect.NewAt(srcTyp, unsafe.Pointer(&data[0])), nil
 		}
-		return nil
+		return name, nil
 	}
 
 	var unaligned kprobe.UnalignedFieldsError
 	if err != nil {
 		var ok bool
 		if unaligned, ok = err.(kprobe.UnalignedFieldsError); !ok {
-			return err
+			return "", err
 		}
 	}
 	dstTyp, err := kprobe.UnpackedStructFor(srcTyp)
 	if err != nil {
-		return err
+		return "", err
 	}
 	// Slow path with either unaligned fields or dynamic arrays.
 	u[name] = func(data []byte) (interface{}, error) {
@@ -46,7 +46,7 @@ func (u Unpacker) Register(format io.Reader) error {
 		err = kprobe.Unpack(dst, src, unaligned, data)
 		return dst, err
 	}
-	return nil
+	return name, nil
 }
 
 func (u Unpacker) Unpack(stream string, data []byte) (interface{}, error) {
@@ -111,10 +111,11 @@ func Example_unpacker() {
 	// Perform one-time format registration.
 	u := make(Unpacker)
 	for _, f := range formats {
-		err := u.Register(strings.NewReader(f))
+		n, err := u.Register(strings.NewReader(f))
 		if err != nil {
 			log.Fatal(err)
 		}
+		fmt.Printf("registered: %s\n", n)
 	}
 
 	// Process stream of events.
@@ -165,6 +166,9 @@ func Example_unpacker() {
 	}
 
 	// Output:
+	// registered: do_sys_open
+	// registered: ip_local_out_call
+	// registered: vfs_read
 	// &{Common_type:7090 Common_flags:0 Common_preempt_count:0 Common_pid:32705 Probe_ip:18446744072341004784 Dfd:2926421296 Filename:[102 105 108 101 46 116 101 120 116 0] Flags:557633 Mode:420}
 	// &{Common_type:3965 Common_flags:0 Common_preempt_count:0 Common_pid:10695 Probe_ip:4024118031 Sock:174262249054272 Size:60 Af:2 Laddr:16777343 Lport:44510 Raddr:16777343 Rport:61374}
 	// &{Common_type:53582 Common_flags:0 Common_preempt_count:0 Common_pid:7795 Probe_ip:1070918415 Arg1:251864649702832 Arg2:[82 18 27 129 255 255 255 255]}
