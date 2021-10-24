@@ -127,6 +127,7 @@ format:
 	fmt.Printf("dst: %+v\n", dst)
 
 	// Output:
+	// warning: dynamic array in struct
 	// do_sys_open 7021
 	// src: &{Common_type:7090 Common_flags:0 Common_preempt_count:0 Common_pid:32705 Probe_ip:18446744072341004784 Dfd:2926421296 Filename:655392 Flags:557633 Mode:420}
 	// dst: &{Common_type:7090 Common_flags:0 Common_preempt_count:0 Common_pid:32705 Probe_ip:18446744072341004784 Dfd:2926421296 Filename:[102 105 108 101 46 116 101 120 116 0] Flags:557633 Mode:420}

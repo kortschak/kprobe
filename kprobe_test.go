@@ -196,6 +196,10 @@ print fmt: "%s %s len %zu", __get_str(driver), __get_str(device), REC->buf_len
 			Buf_len              uint64 `ctyp:"size_t" name:"buf_len"`
 			Buf                  []byte `ctyp:"__data_loc u8[]" name:"buf"`
 		}{},
+		wantErr: UnalignedFieldsError{
+			Unaligned:    []bool{7: false},
+			DynamicArray: true,
+		},
 	},
 	{
 		name: "ip_local_out_call",
@@ -289,7 +293,10 @@ print fmt: ""%s" %x %o", __get_str(filename), REC->flags, REC->mode
 			Flags                int32   `ctyp:"int" name:"flags"`
 			Mode                 int32   `ctyp:"int" name:"mode"`
 		}{},
-		wantErr: nil,
+		wantErr: UnalignedFieldsError{
+			Unaligned:    []bool{6: false},
+			DynamicArray: true,
+		},
 	},
 }
 

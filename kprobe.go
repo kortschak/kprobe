@@ -23,13 +23,23 @@ import (
 
 // UnalignedFieldsError contains a list of field indexes for fields that are
 // not aligned according to Go type alignment rules and are represented as byte
-// arrays.
+// arrays, or are part of a dynamic array.
 type UnalignedFieldsError struct {
+	// Fields and Unaligned describe unaligned fields in a kprobe struct.
 	Fields    []int  // Fields is a list of unaligned fields.
 	Unaligned []bool // Unaligned[i] is true for field i if it is unaligned.
+
+	// DynamicArray indicates the struct has at a __loc_data field.
+	DynamicArray bool
 }
 
 func (e UnalignedFieldsError) Error() string {
+	if len(e.Fields) == 0 && e.DynamicArray {
+		return "dynamic array in struct"
+	}
+	if e.DynamicArray {
+		return fmt.Sprintf("dynamic array and unaligned fields in struct: %d", e.Fields)
+	}
 	return fmt.Sprintf("unaligned fields in struct: %d", e.Fields)
 }
 
@@ -75,6 +85,9 @@ func Struct(r io.Reader) (typ reflect.Type, name string, id int, err error) {
 			ctyp, field, err := fieldName(f[0])
 			if err != nil {
 				return nil, "", 0, err
+			}
+			if strings.HasPrefix(ctyp, "__data_loc") {
+				unaligned.DynamicArray = true
 			}
 			offset, err := offset(f[1])
 			if err != nil {
@@ -137,7 +150,7 @@ func Struct(r io.Reader) (typ reflect.Type, name string, id int, err error) {
 			return nil, name, id, fmt.Errorf("could not generate correct field offset for %s: %d != %d", got.Name, got.Offset, want.Offset)
 		}
 	}
-	if len(unaligned.Fields) != 0 {
+	if len(unaligned.Fields) != 0 || unaligned.DynamicArray {
 		unaligned.Unaligned = make([]bool, len(fields))
 		for _, i := range unaligned.Fields {
 			unaligned.Unaligned[i] = true
