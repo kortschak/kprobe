@@ -16,7 +16,7 @@ import (
 )
 
 // Unpacker is a minimal kprobe event handler.
-type Unpacker map[uint16]func(data []byte) (string, interface{}, error)
+type Unpacker map[uint16]func(data []byte) (string, reflect.Value, error)
 
 // Register registers a kprobe event format and returns the event's name.
 func (u Unpacker) Register(format io.Reader) (name string, err error) {
@@ -24,9 +24,9 @@ func (u Unpacker) Register(format io.Reader) (name string, err error) {
 	if err == nil {
 		// Fast path with layout consistent between kprobe
 		// event and Go struct.
-		u[id] = func(data []byte) (string, interface{}, error) {
+		u[id] = func(data []byte) (string, reflect.Value, error) {
 			if len(data) < size {
-				return "", nil, io.ErrUnexpectedEOF
+				return "", reflect.Value{}, io.ErrUnexpectedEOF
 			}
 			return name, reflect.NewAt(srcTyp, unsafe.Pointer(&data[0])), nil
 		}
@@ -45,9 +45,9 @@ func (u Unpacker) Register(format io.Reader) (name string, err error) {
 		return "", err
 	}
 	// Slow path with either unaligned fields or dynamic arrays.
-	u[id] = func(data []byte) (string, interface{}, error) {
+	u[id] = func(data []byte) (string, reflect.Value, error) {
 		if len(data) < size {
-			return "", nil, io.ErrUnexpectedEOF
+			return "", reflect.Value{}, io.ErrUnexpectedEOF
 		}
 		src := reflect.NewAt(srcTyp, unsafe.Pointer(&data[0]))
 		dst := reflect.New(dstTyp)
@@ -59,14 +59,14 @@ func (u Unpacker) Register(format io.Reader) (name string, err error) {
 
 // Unpack parses the provided date and returns the name of the event and
 // a struct holding the event details.
-func (u Unpacker) Unpack(data []byte) (string, interface{}, error) {
+func (u Unpacker) Unpack(data []byte) (string, reflect.Value, error) {
 	if len(data) < 8 {
-		return "", nil, io.ErrUnexpectedEOF
+		return "", reflect.Value{}, io.ErrUnexpectedEOF
 	}
 	typ := *(*uint16)(unsafe.Pointer(&data[0]))
 	f, ok := u[typ]
 	if !ok {
-		return "", nil, fmt.Errorf("no unpacker for event id=%d", typ)
+		return "", reflect.Value{}, fmt.Errorf("no unpacker for event id=%d", typ)
 	}
 	return f(data)
 }
