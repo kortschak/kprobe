@@ -5,6 +5,7 @@
 package kprobe
 
 import (
+	"errors"
 	"reflect"
 	"strings"
 	"testing"
@@ -315,7 +316,7 @@ format:
 	field:unsigned char common_preempt_count;	offset:3;	size:1;	signed:0;
 	field:int common_pid;	offset:4;	size:4;	signed:1;
 
-	field:u8 c;	offset:8;	size:1;	signed:1;
+	field:u8 c;	offset:8;	size:1;	signed:0;
 
 print fmt: ""%c"", REC->c
 `,
@@ -327,16 +328,49 @@ print fmt: ""%c"", REC->c
 			Common_flags         uint8  `ctyp:"unsigned char" name:"common_flags"`
 			Common_preempt_count uint8  `ctyp:"unsigned char" name:"common_preempt_count"`
 			Common_pid           int32  `ctyp:"int" name:"common_pid"`
-			C                    int8   `ctyp:"u8" name:"c"`
+			C                    uint8  `ctyp:"u8" name:"c"`
 		}{},
 		wantUnaligned: struct {
 			Common_type          uint16 `ctyp:"unsigned short" name:"common_type"`
 			Common_flags         uint8  `ctyp:"unsigned char" name:"common_flags"`
 			Common_preempt_count uint8  `ctyp:"unsigned char" name:"common_preempt_count"`
 			Common_pid           int32  `ctyp:"int" name:"common_pid"`
-			C                    int8   `ctyp:"u8" name:"c"`
+			C                    uint8  `ctyp:"u8" name:"c"`
 		}{},
-		wantErr: nil,
+	},
+	{
+		name: "fake",
+		format: `name: fake
+ID: 1
+format:
+	field:unsigned short common_type;	offset:0;	size:2;	signed:0;
+	field:unsigned char common_flags;	offset:2;	size:1;	signed:0;
+	field:unsigned char common_preempt_count;	offset:3;	size:1;	signed:0;
+	field:int common_pid;	offset:4;	size:4;	signed:1;
+
+	field:u8 c;	offset:8;	size:1;	signed:1;
+	field:u8 c;	offset:9;	size:1;	signed:1;
+
+print fmt: ""%c"", REC->c
+`,
+		wantErr: errors.New("duplicate field name: C"),
+	},
+	{
+		name: "fake",
+		format: `name: fake
+ID: 1
+format:
+	field:unsigned short common_type;	offset:0;	size:2;	signed:0;
+	field:unsigned char common_flags;	offset:2;	size:1;	signed:0;
+	field:unsigned char common_preempt_count;	offset:3;	size:1;	signed:0;
+	field:int common_pid;	offset:4;	size:4;	signed:1;
+
+	field:u8 c;	offset:8;	size:1;	signed:1;
+	field:u8 c;	offset:8;	size:1;	signed:1;
+
+print fmt: ""%c"", REC->c
+`,
+		wantErr: errors.New("invalid offset for field 5: 8"),
 	},
 }
 
@@ -346,9 +380,11 @@ func TestStruct(t *testing.T) {
 		if !reflect.DeepEqual(err, test.wantErr) {
 			t.Errorf("unexpected error for aligned %q: got:%#v want:%#v",
 				test.name, err, test.wantErr)
-			if test.wantErr == nil {
-				continue
-			}
+		}
+		switch err.(type) {
+		case nil, UnalignedFieldsError:
+		default:
+			continue
 		}
 		if gotName != test.wantName {
 			t.Errorf("unexpected name for %q: got:%q want:%q",

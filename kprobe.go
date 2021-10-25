@@ -75,6 +75,7 @@ func Struct(r io.Reader) (typ reflect.Type, name string, id uint16, size int, er
 	)
 	sc := bufio.NewScanner(r)
 	var i, padIdx, nextOffset int
+	seen := make(map[string]bool)
 	for sc.Scan() {
 		b := sc.Bytes()
 		switch {
@@ -100,7 +101,7 @@ func Struct(r io.Reader) (typ reflect.Type, name string, id uint16, size int, er
 			}
 			var tag reflect.StructTag
 			if fallback {
-				unaligned.Fields = append(unaligned.Fields, i)
+				unaligned.Fields = append(unaligned.Fields, i+padIdx)
 				tag = reflect.StructTag(fmt.Sprintf(`ctyp:%q name:%q unaligned:"%s %s"`,
 					ctyp, field, f[2], f[3]))
 			} else {
@@ -108,7 +109,7 @@ func Struct(r io.Reader) (typ reflect.Type, name string, id uint16, size int, er
 			}
 			pad := offset - nextOffset
 			if pad < 0 {
-				panic(fmt.Sprintf("invalid padding: %d", pad))
+				return nil, "", 0, 0, fmt.Errorf("invalid offset for field %d: %d", i, offset)
 			}
 			if pad > 0 {
 				fields = append(fields, reflect.StructField{
@@ -118,10 +119,14 @@ func Struct(r io.Reader) (typ reflect.Type, name string, id uint16, size int, er
 					Offset:  uintptr(nextOffset),
 				})
 				padIdx++
-				i++
 			}
+			fname := export(field)
+			if seen[fname] {
+				return nil, "", 0, 0, fmt.Errorf("duplicate field name: %s", fname)
+			}
+			seen[fname] = true
 			fields = append(fields, reflect.StructField{
-				Name:   export(field),
+				Name:   fname,
 				Type:   typ,
 				Tag:    tag,
 				Offset: uintptr(offset),
