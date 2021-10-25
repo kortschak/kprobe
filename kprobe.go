@@ -399,7 +399,7 @@ func export(s string) string {
 			return string(lead) + n[i:]
 		}
 	}
-	panic("cannot reach")
+	return string(lead)
 }
 
 // fieldName parses the C type and field name from the provided string.

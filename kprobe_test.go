@@ -305,6 +305,39 @@ print fmt: ""%s" %x %o", __get_str(filename), REC->flags, REC->mode
 			DynamicArray: true,
 		},
 	},
+	{
+		name: "fake",
+		format: `name: fake
+ID: 1
+format:
+	field:unsigned short common_type;	offset:0;	size:2;	signed:0;
+	field:unsigned char common_flags;	offset:2;	size:1;	signed:0;
+	field:unsigned char common_preempt_count;	offset:3;	size:1;	signed:0;
+	field:int common_pid;	offset:4;	size:4;	signed:1;
+
+	field:u8 c;	offset:8;	size:1;	signed:1;
+
+print fmt: ""%c"", REC->c
+`,
+		wantName: "fake",
+		wantID:   1,
+		wantSize: 9,
+		wantAligned: struct {
+			Common_type          uint16 `ctyp:"unsigned short" name:"common_type"`
+			Common_flags         uint8  `ctyp:"unsigned char" name:"common_flags"`
+			Common_preempt_count uint8  `ctyp:"unsigned char" name:"common_preempt_count"`
+			Common_pid           int32  `ctyp:"int" name:"common_pid"`
+			C                    int8   `ctyp:"u8" name:"c"`
+		}{},
+		wantUnaligned: struct {
+			Common_type          uint16 `ctyp:"unsigned short" name:"common_type"`
+			Common_flags         uint8  `ctyp:"unsigned char" name:"common_flags"`
+			Common_preempt_count uint8  `ctyp:"unsigned char" name:"common_preempt_count"`
+			Common_pid           int32  `ctyp:"int" name:"common_pid"`
+			C                    int8   `ctyp:"u8" name:"c"`
+		}{},
+		wantErr: nil,
+	},
 }
 
 func TestStruct(t *testing.T) {
