@@ -45,11 +45,22 @@ func (e UnalignedFieldsError) Error() string {
 }
 
 // Struct returns a struct corresponding to the kprobe event format in r,
-// along with the probe's name and id. Struct attempts to construct the struct
-// with the same types as specified by the event format, but in cases where
-// this is not possible due to alignment, the unaligned fields will be
-// represented as byte arrays of the same size and the field indices will
-// be returned in an UnalignedFieldsError.
+// along with the probe's name and id. See StructPkg for details. Padding
+// fields use the kprobe package's package path.
+func Struct(r io.Reader) (typ reflect.Type, name string, id uint16, size int, err error) {
+	return StructPkg(r, pkgPath)
+}
+
+// pkgPath is the dynamically determined package path for this package.
+var pkgPath = reflect.TypeOf(struct{ _ [0]byte }{}).Field(0).PkgPath
+
+// Struct returns a struct corresponding to the kprobe event format in r,
+// along with the probe's name and id. With padding fields using the package
+// path, pkg. Struct attempts to construct the struct with the same types as
+// specified by the event format, but in cases where this is not possible
+// due to alignment, the unaligned fields will be represented as byte arrays
+// of the same size and the field indices will be returned in an
+// UnalignedFieldsError.
 //
 // C type information and the original C field names are included in struct
 // field tags.
@@ -68,7 +79,7 @@ func (e UnalignedFieldsError) Error() string {
 //   #define __get_dynamic_array_len(field)
 //     ((__entry->__data_loc_##field >> 16) & 0xffff)
 //
-func Struct(r io.Reader) (typ reflect.Type, name string, id uint16, size int, err error) {
+func StructPkg(r io.Reader, pkg string) (typ reflect.Type, name string, id uint16, size int, err error) {
 	var (
 		fields    []reflect.StructField
 		unaligned UnalignedFieldsError
@@ -113,8 +124,11 @@ func Struct(r io.Reader) (typ reflect.Type, name string, id uint16, size int, er
 			}
 			if pad > 0 {
 				fields = append(fields, reflect.StructField{
+					// TODO(kortschak): Use "_" in place of "_padN" when
+					// go1.18 is the earliest supported Go version.
+					// See https://golang.org/issue/49110.
 					Name:    fmt.Sprintf("_pad%d", padIdx),
-					PkgPath: "github.com/kortschak/kprobe", // Needed for testing.
+					PkgPath: pkg,
 					Type:    reflect.ArrayOf(pad, reflect.TypeOf(uint8(0))),
 					Offset:  uintptr(nextOffset),
 				})
