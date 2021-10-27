@@ -69,7 +69,7 @@ var pkgPath = reflect.TypeOf(struct{ _ [0]byte }{}).Field(0).PkgPath
 //  - name: C field name
 //  - unaligned: additional type information for packed fields.
 //
-// Structs referencing dynamic arrays as string data hold a 32 bit unsigned
+// Structs referencing dynamic arrays or string data hold a 32 bit unsigned
 // value that points to the data with a ctyp field tag with the prefix
 // __data_loc. The value has the following semantics:
 //
