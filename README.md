@@ -59,16 +59,16 @@ gives
 
 ```
 struct {
-	Common_type          uint16 `ctyp:"unsigned short" name:"common_type"`
-	Common_flags         uint8  `ctyp:"unsigned char" name:"common_flags"`
-	Common_preempt_count uint8  `ctyp:"unsigned char" name:"common_preempt_count"`
-	Common_pid           int32  `ctyp:"int" name:"common_pid"`
-	_pad0                [4]uint8
-	Probe_ip             uint32 `ctyp:"unsigned long" name:"__probe_ip"`
-	Probe_nargs          int32  `ctyp:"int" name:"__probe_nargs"`
-	Dfd                  uint32 `ctyp:"unsigned long" name:"dfd"`
-	Filename             uint32 `ctyp:"unsigned long" name:"filename"`
-	Flags                uint32 `ctyp:"unsigned long" name:"flags"`
-	Mode                 uint32 `ctyp:"unsigned long" name:"mode"`
+	Common_type          uint16   `ctyp:"unsigned short" name:"common_type"`
+	Common_flags         uint8    `ctyp:"unsigned char" name:"common_flags"`
+	Common_preempt_count uint8    `ctyp:"unsigned char" name:"common_preempt_count"`
+	Common_pid           int32    `ctyp:"int" name:"common_pid"`
+	_                    [4]uint8 `pad:"0" bytes:"[8:12]"`
+	Probe_ip             uint32   `ctyp:"unsigned long" name:"__probe_ip"`
+	Probe_nargs          int32    `ctyp:"int" name:"__probe_nargs"`
+	Dfd                  uint32   `ctyp:"unsigned long" name:"dfd"`
+	Filename             uint32   `ctyp:"unsigned long" name:"filename"`
+	Flags                uint32   `ctyp:"unsigned long" name:"flags"`
+	Mode                 uint32   `ctyp:"unsigned long" name:"mode"`
 }
 ```
