@@ -47,30 +47,30 @@ REC->dfd, REC->filename, REC->flags, REC->mode
 		wantID:   780,
 		wantSize: 36,
 		wantAligned: struct {
-			Common_type          uint16 `ctyp:"unsigned short" name:"common_type"`
-			Common_flags         uint8  `ctyp:"unsigned char" name:"common_flags"`
-			Common_preempt_count uint8  `ctyp:"unsigned char" name:"common_preempt_count"`
-			Common_pid           int32  `ctyp:"int" name:"common_pid"`
-			_pad0                [4]uint8
-			Probe_ip             uint32 `ctyp:"unsigned long" name:"__probe_ip"`
-			Probe_nargs          int32  `ctyp:"int" name:"__probe_nargs"`
-			Dfd                  uint32 `ctyp:"unsigned long" name:"dfd"`
-			Filename             uint32 `ctyp:"unsigned long" name:"filename"`
-			Flags                uint32 `ctyp:"unsigned long" name:"flags"`
-			Mode                 uint32 `ctyp:"unsigned long" name:"mode"`
+			Common_type          uint16   `ctyp:"unsigned short" name:"common_type"`
+			Common_flags         uint8    `ctyp:"unsigned char" name:"common_flags"`
+			Common_preempt_count uint8    `ctyp:"unsigned char" name:"common_preempt_count"`
+			Common_pid           int32    `ctyp:"int" name:"common_pid"`
+			_                    [4]uint8 `pad:"0" bytes:"[8:12]"`
+			Probe_ip             uint32   `ctyp:"unsigned long" name:"__probe_ip"`
+			Probe_nargs          int32    `ctyp:"int" name:"__probe_nargs"`
+			Dfd                  uint32   `ctyp:"unsigned long" name:"dfd"`
+			Filename             uint32   `ctyp:"unsigned long" name:"filename"`
+			Flags                uint32   `ctyp:"unsigned long" name:"flags"`
+			Mode                 uint32   `ctyp:"unsigned long" name:"mode"`
 		}{},
 		wantUnaligned: struct {
-			Common_type          uint16 `ctyp:"unsigned short" name:"common_type"`
-			Common_flags         uint8  `ctyp:"unsigned char" name:"common_flags"`
-			Common_preempt_count uint8  `ctyp:"unsigned char" name:"common_preempt_count"`
-			Common_pid           int32  `ctyp:"int" name:"common_pid"`
-			_pad0                [0]uint8
-			Probe_ip             uint32 `ctyp:"unsigned long" name:"__probe_ip"`
-			Probe_nargs          int32  `ctyp:"int" name:"__probe_nargs"`
-			Dfd                  uint32 `ctyp:"unsigned long" name:"dfd"`
-			Filename             uint32 `ctyp:"unsigned long" name:"filename"`
-			Flags                uint32 `ctyp:"unsigned long" name:"flags"`
-			Mode                 uint32 `ctyp:"unsigned long" name:"mode"`
+			Common_type          uint16   `ctyp:"unsigned short" name:"common_type"`
+			Common_flags         uint8    `ctyp:"unsigned char" name:"common_flags"`
+			Common_preempt_count uint8    `ctyp:"unsigned char" name:"common_preempt_count"`
+			Common_pid           int32    `ctyp:"int" name:"common_pid"`
+			_                    [0]uint8 `pad:"0" bytes:"[8:12]"`
+			Probe_ip             uint32   `ctyp:"unsigned long" name:"__probe_ip"`
+			Probe_nargs          int32    `ctyp:"int" name:"__probe_nargs"`
+			Dfd                  uint32   `ctyp:"unsigned long" name:"dfd"`
+			Filename             uint32   `ctyp:"unsigned long" name:"filename"`
+			Flags                uint32   `ctyp:"unsigned long" name:"flags"`
+			Mode                 uint32   `ctyp:"unsigned long" name:"mode"`
 		}{},
 	},
 	{
@@ -98,11 +98,11 @@ REC->dfd, REC->filename, REC->flags, REC->mode
 		wantID:   780,
 		wantSize: 40,
 		wantAligned: struct {
-			Common_type          uint16 `ctyp:"unsigned short" name:"common_type"`
-			Common_flags         uint8  `ctyp:"unsigned char" name:"common_flags"`
-			Common_preempt_count uint8  `ctyp:"unsigned char" name:"common_preempt_count"`
-			Common_pid           int32  `ctyp:"int" name:"common_pid"`
-			_pad0                [4]uint8
+			Common_type          uint16    `ctyp:"unsigned short" name:"common_type"`
+			Common_flags         uint8     `ctyp:"unsigned char" name:"common_flags"`
+			Common_preempt_count uint8     `ctyp:"unsigned char" name:"common_preempt_count"`
+			Common_pid           int32     `ctyp:"int" name:"common_pid"`
+			_                    [4]uint8  `pad:"0" bytes:"[8:12]"`
 			Probe_ip             uint32    `ctyp:"unsigned long" name:"__probe_ip"`
 			Probe_nargs          int32     `ctyp:"int" name:"__probe_nargs"`
 			Dfd                  uint32    `ctyp:"unsigned long" name:"dfd"`
@@ -111,11 +111,11 @@ REC->dfd, REC->filename, REC->flags, REC->mode
 			Mode                 uint32    `ctyp:"unsigned long" name:"mode"`
 		}{},
 		wantUnaligned: struct {
-			Common_type          uint16 `ctyp:"unsigned short" name:"common_type"`
-			Common_flags         uint8  `ctyp:"unsigned char" name:"common_flags"`
-			Common_preempt_count uint8  `ctyp:"unsigned char" name:"common_preempt_count"`
-			Common_pid           int32  `ctyp:"int" name:"common_pid"`
-			_pad0                [0]uint8
+			Common_type          uint16    `ctyp:"unsigned short" name:"common_type"`
+			Common_flags         uint8     `ctyp:"unsigned char" name:"common_flags"`
+			Common_preempt_count uint8     `ctyp:"unsigned char" name:"common_preempt_count"`
+			Common_pid           int32     `ctyp:"int" name:"common_pid"`
+			_                    [0]uint8  `pad:"0" bytes:"[8:12]"`
 			Probe_ip             uint32    `ctyp:"unsigned long" name:"__probe_ip"`
 			Probe_nargs          int32     `ctyp:"int" name:"__probe_nargs"`
 			Dfd                  uint32    `ctyp:"unsigned long" name:"dfd"`
@@ -521,18 +521,18 @@ print fmt: "vgpu%d ring %d: address_type %u, buf_type %u, ip_gma %08x,cmd (name=
 			return b
 		}(),
 		want: struct {
-			Common_type          uint16 `ctyp:"unsigned short" name:"common_type"`
-			Common_flags         uint8  `ctyp:"unsigned char" name:"common_flags"`
-			Common_preempt_count uint8  `ctyp:"unsigned char" name:"common_preempt_count"`
-			Common_pid           int32  `ctyp:"int" name:"common_pid"`
-			Vgpu_id              uint8  `ctyp:"u8" name:"vgpu_id"`
-			Ring_id              uint8  `ctyp:"u8" name:"ring_id"`
-			_pad0                [0]uint8
-			Ip_gma               uint32 `ctyp:"u32" name:"ip_gma"`
-			Buf_type             uint32 `ctyp:"u32" name:"buf_type"`
-			Buf_addr_type        uint32 `ctyp:"u32" name:"buf_addr_type"`
-			Cmd_len              uint32 `ctyp:"u32" name:"cmd_len"`
-			_pad1                [0]uint8
+			Common_type          uint16   `ctyp:"unsigned short" name:"common_type"`
+			Common_flags         uint8    `ctyp:"unsigned char" name:"common_flags"`
+			Common_preempt_count uint8    `ctyp:"unsigned char" name:"common_preempt_count"`
+			Common_pid           int32    `ctyp:"int" name:"common_pid"`
+			Vgpu_id              uint8    `ctyp:"u8" name:"vgpu_id"`
+			Ring_id              uint8    `ctyp:"u8" name:"ring_id"`
+			_                    [0]uint8 `pad:"0" bytes:"[10:12]"`
+			Ip_gma               uint32   `ctyp:"u32" name:"ip_gma"`
+			Buf_type             uint32   `ctyp:"u32" name:"buf_type"`
+			Buf_addr_type        uint32   `ctyp:"u32" name:"buf_addr_type"`
+			Cmd_len              uint32   `ctyp:"u32" name:"cmd_len"`
+			_                    [0]uint8 `pad:"1" bytes:"[28:32]"`
 			Workload             uint64   `ctyp:"void*" name:"workload"`
 			Raw_cmd              []uint32 `ctyp:"__data_loc u32[]" name:"raw_cmd"`
 			Cmd_name             [40]int8 `ctyp:"char[40]" name:"cmd_name"`

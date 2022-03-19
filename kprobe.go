@@ -54,9 +54,9 @@ func Struct(r io.Reader) (typ reflect.Type, name string, id uint16, size int, er
 // pkgPath is the dynamically determined package path for this package.
 var pkgPath = reflect.TypeOf(struct{ _ [0]byte }{}).Field(0).PkgPath
 
-// Struct returns a struct corresponding to the kprobe event format in r,
+// StructPkg returns a struct corresponding to the kprobe event format in r,
 // along with the probe's name and id. With padding fields using the package
-// path, pkg. Struct attempts to construct the struct with the same types as
+// path, pkg. StructPkg attempts to construct the struct with the same types as
 // specified by the event format, but in cases where this is not possible
 // due to alignment, the unaligned fields will be represented as byte arrays
 // of the same size and the field indices will be returned in an
@@ -68,6 +68,9 @@ var pkgPath = reflect.TypeOf(struct{ _ [0]byte }{}).Field(0).PkgPath
 //  - ctyp: type information
 //  - name: C field name
 //  - unaligned: additional type information for packed fields.
+//
+// Padding fields will include a struct field tag, "bytes", indicating the byte
+// range of the message that the padding spans.
 //
 // Structs referencing dynamic arrays or string data hold a 32 bit unsigned
 // value that points to the data with a ctyp field tag with the prefix
@@ -124,10 +127,9 @@ func StructPkg(r io.Reader, pkg string) (typ reflect.Type, name string, id uint1
 			}
 			if pad > 0 {
 				fields = append(fields, reflect.StructField{
-					// TODO(kortschak): Use "_" in place of "_padN" when
-					// go1.18 is the earliest supported Go version.
-					// See https://golang.org/issue/49110.
-					Name:    fmt.Sprintf("_pad%d", padIdx),
+					Name: "_",
+					Tag: reflect.StructTag(fmt.Sprintf(`pad:"%d" bytes:"[%d:%d]"`,
+						padIdx, nextOffset, nextOffset+pad)),
 					PkgPath: pkg,
 					Type:    reflect.ArrayOf(pad, reflect.TypeOf(uint8(0))),
 					Offset:  uintptr(nextOffset),
@@ -166,7 +168,7 @@ func StructPkg(r io.Reader, pkg string) (typ reflect.Type, name string, id uint1
 	}
 	typ = reflect.StructOf(fields)
 	for _, want := range fields {
-		got, ok := typ.FieldByName(want.Name)
+		got, ok := fieldByNameOrPad(typ, want.Name, want.Tag.Get("pad"))
 		if !ok {
 			return nil, name, id, 0, fmt.Errorf("lost field %s", got.Name)
 		}
@@ -189,6 +191,24 @@ func StructPkg(r io.Reader, pkg string) (typ reflect.Type, name string, id uint1
 	return typ, name, id, size, err
 }
 
+// fieldByNameOrPad returns the struct field with the given name or if
+// the field is a blank identifier, the field with the given padding ID.
+func fieldByNameOrPad(typ reflect.Type, name, pad string) (reflect.StructField, bool) {
+	if name != "_" {
+		return typ.FieldByName(name)
+	}
+	for i := 0; i < typ.NumField(); i++ {
+		f := typ.Field(i)
+		if f.Name != "_" {
+			continue
+		}
+		if f.Tag.Get("pad") == pad {
+			return f, true
+		}
+	}
+	return reflect.StructField{}, false
+}
+
 // UnpackedStructFor returns an unpacked struct type equivalent to typ, which must
 // have been create with a call to Struct.
 func UnpackedStructFor(typ reflect.Type) (reflect.Type, error) {
@@ -196,7 +216,7 @@ func UnpackedStructFor(typ reflect.Type) (reflect.Type, error) {
 	for i := range fields {
 		f := typ.Field(i)
 		if !f.IsExported() {
-			if strings.HasPrefix(f.Name, "_pad") {
+			if f.Name == "_" {
 				f.Type = reflect.ArrayOf(0, reflect.TypeOf(uint8(0)))
 			}
 			fields[i] = f
